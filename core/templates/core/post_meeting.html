@@ -1,0 +1,52 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Post Meeting Minutes | Tambul Hustle Youth Group</title>
+    <link rel="icon" type="image/svg+xml" sizes="any" href="{% static 'images/favicon.svg' %}" />
+    <link rel="alternate icon" type="image/png" href="{% static 'images/logo.png' %}" />
+    <link rel="stylesheet" href="{% static 'core/post_meeting.css' %}" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <img
+          src="{% static 'images/logo.png' %}"
+          alt="Tambul Hustle logo"
+          class="brand-logo"
+        />
+        <div class="brand-copy">
+        <h2>Tambul Hustle Youth Group</h2>
+        <span class="sub">Secretary — Post Meeting Minutes</span>
+        </div>
+      </div>
+      <div class="topbar-center">
+        <span class="greeting">Welcome, {{ request.user.first_name }}</span>
+      </div>
+      <div class="user-actions">
+        <form action="{% url 'logout' %}" method="post" style="display: contents;">
+          {% csrf_token %}
+          <button type="submit" class="logout-btn">Logout</button>
+        </form>
+      </div>
+    </header>
+
+    <main class="content">
+      <h3>Post Meeting Minutes</h3>
+      <form method="post" enctype="multipart/form-data" class="form-card">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Submit</button>
+          <a href="{% url 'committee-dashboard' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+      </form>
+    </main>
+
+    <footer class="footer">
+      <p>&copy; {{ this_year }} Tambul Hustle Youth Group. All rights reserved.</p>
+    </footer>
+  </body>
+</html>

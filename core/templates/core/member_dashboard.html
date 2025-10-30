@@ -1,0 +1,383 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tambul Member Dashboard</title>
+    <link rel="icon" type="image/svg+xml" sizes="any" href="{% static 'images/favicon.svg' %}" />
+    <link rel="alternate icon" type="image/png" href="{% static 'images/logo.png' %}" />
+    <link rel="stylesheet" href="{% static 'core/member_dashboard.css' %}" />
+  </head>
+  <body>
+    <!-- ===== HEADER ===== -->
+    <header class="main-header">
+      <div class="header-left">
+        <img
+          src="{% static 'images/logo.png' %}"
+          alt="Tambul Logo"
+          class="logo"
+        />
+        <h1 class="title">Tambul Hustle Youth Group Member Dashboard</h1>
+      </div>
+
+      <div class="header-right">
+        <span class="year">{{ this_year }}</span>
+        <form action="{% url 'logout' %}" method="post" style="display: inline">
+          {% csrf_token %}
+          <button type="submit" class="logout-btn">Logout</button>
+        </form>
+      </div>
+    </header>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main class="dashboard">
+      <div class="welcome">
+        <h2>Welcome, {{ request.user.first_name }}</h2>
+        <div class="loan-cta">
+          {% if can_apply_loan %}
+            <a href="{% url 'apply-loan' %}" class="btn btn-primary"> Apply for Loan</a>
+          {% else %}
+            <span class="loan-note">
+              You currently have an active or unpaid loan. Clear it before applying again.
+            </span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <section class="overview">
+        <div class="card">
+          <h4>Ksh {{ contrib_ytd|floatformat:2 }}</h4>
+          <p> My Total Contributions</p>
+        </div>
+        <div class="card">
+          <h4>{{ active_loan_count }}</h4>
+          <p>My Active Loans</p>
+        </div>
+        <div class="card">
+          <h4>Ksh {{ outstanding_principal|floatformat:2 }}</h4>
+          <p>Total Loan Borrowed</p>
+        </div>
+        <div class="card">
+          <h4>Ksh {{ loan_balance|floatformat:2 }}</h4>
+          <p>Total Loan Balance</p>
+        </div>
+      </section>
+
+      <!-- Announcements -->
+        <section class="table-section">
+          <h3 class="section-title">Latest Announcements</h3>
+          <div class="table-wrap">
+            <table class="styled-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Title</th>
+                  <th>Message</th>
+                  <th>Date</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for a in latest_announcements %}
+                <tr>
+                  <td>{{ forloop.counter }}</td>
+                  <td>{{ a.title }}</td>
+                  <td>{{ a.message|truncatewords:12 }}</td>
+                  <td>{{ a.published_at|date:"M d, Y" }}</td>
+                  <td>
+                    <button
+                      type="button"
+                      class="btn btn-outline-info btn-sm"
+                      onclick="openAnnouncementModal('{{ a.id }}')"
+                    >
+                      <i class="fa fa-eye"></i> View
+                    </button>
+
+                    <!-- Hidden modal content -->
+                    <div id="announcement-content-{{ a.id }}" style="display:none;">
+                      <h4>{{ a.title }}</h4>
+                      <p>{{ a.message|linebreaks }}</p>
+                      <p><strong>Date Posted:</strong> {{ a.published_at|date:"F d, Y" }}</p>
+                    </div>
+                  </td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="5" class="empty">No announcements yet</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Modal -->
+        <div id="announcementModal" class="modal">
+          <div class="modal-content">
+            <span class="close" onclick="closeAnnouncementModal()">&times;</span>
+            <div id="announcement-body"></div>
+          </div>
+        </div>
+
+
+      <!-- Loans -->
+
+      <section class="table-section">
+        <h3 class="section-title">My Loans</h3>
+        <div class="table-wrap">
+          <table class="styled-table">
+            <thead>
+              <tr>
+                <th>Loan Date</th>
+                <th>Due Date</th>
+                <th>Today</th>
+                <th>Amount (Ksh)</th>
+                <th>Interest (10%)</th>
+                <th>Approval Status</th>
+                <th>Repayment Status</th>
+                <th>Months Overdue</th>
+                <th>Penalty</th>
+                <th>Total (Ksh)</th>
+                <th>Updated On</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for loan in loans %}
+              <tr>
+                <td>{{ loan.loan_date|date:"M d, Y" }}</td>
+                <td>{{ loan.due_date|date:"M d, Y" }}</td>
+                <td>{{ today|date:"M d, Y" }}</td>
+                <td>{{ loan.amount|floatformat:0 }}</td>
+                <td>{{ loan.interest|floatformat:0 }}</td>
+
+                <!-- Approval Status -->
+                <td>
+                  <span class="status status--{{ loan.status|slugify }}">
+                    {{ loan.status|capfirst }}
+                  </span>
+                </td>
+
+                <!-- Repayment Status -->
+                <td>
+                  <span class="status status--{{ loan.repayment_status|slugify }}">
+                    {{ loan.repayment_status|capfirst }}
+                  </span>
+                </td>
+
+                <!-- Months Overdue -->
+                <td>{{ loan.months_overdue }}</td>
+
+                <!-- Penalty -->
+                <td>{{ loan.penalty|floatformat:0 }}</td>
+
+                <!-- Total -->
+                <td>{{ loan.total_balance|floatformat:0 }}</td>
+
+                <!-- Last Updated -->
+                <td>{{ loan.repayment_updated_at|date:"M d, Y"|default:"—" }}</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="11" class="empty">No loan records found</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Monthly Contributions -->
+      <section class="table-section">
+        <h3 class="section-title">My Monthly Contributions</h3>
+        <div class="table-wrap">
+          <table class="styled-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Month</th>
+                <th>Amount (Ksh)</th>
+                <th>Date</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in recent_contributions %}
+              <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ c.month|date:"F Y" }}</td>
+                <td>{{ c.amount|floatformat:2 }}</td>
+                <td>{{ c.created_at|date:"M d, Y" }}</td>
+                <td>
+                  <span class="status status--{{ c.status|slugify }}">
+                    {{ c.get_status_display }}
+                  </span>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" class="empty">No contributions yet</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Welfare -->
+      <section class="table-section">
+        <h3 class="section-title">My Welfare Contributions</h3>
+        <div class="table-wrap">
+          <table class="styled-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Month</th>
+                <th>Amount (Ksh)</th>
+                <th>Status</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for w in recent_welfare %}
+              <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ w.date_given|date:"F Y" }}</td>
+                <td>{{ w.amount|floatformat:2 }}</td>
+                <td>
+                  <span class="status status--{{ w.status|slugify }}">
+                    {{ w.status|capfirst }}
+                  </span>
+                </td>
+                <td>{{ w.date_given|date:"M d, Y" }}</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" class="empty">No contributions yet</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Reports (Meeting Minutes) -->
+      <section class="table-section">
+        <h3 class="section-title">Reports & Meeting Minutes</h3>
+        <div class="table-wrap">
+          <table class="styled-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Title</th>
+                <th>Description</th>
+                <th>Date Posted</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for note in meeting_notes %}
+              <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ note.title }}</td>
+                <td>
+                  <span class="note-description" title="{{ note.description }}">
+                    {{ note.description|default:"—" }}
+                  </span>
+                </td>
+                <td>{{ note.created_at|date:"M d, Y" }}</td>
+                <td>
+                  {% if note.file %}
+                    <a href="{{ note.file.url }}" target="_blank" class="btn btn-primary btn-sm">
+                      Download
+                    </a>
+                  {% elif note.content %}
+                    <button type="button" class="btn btn-outline-info btn-sm"
+                      onclick="openMinutesModal('{{ note.id }}')">
+                      View Notes
+                    </button>
+
+                    <!-- Hidden modal content -->
+                    <div id="minutes-content-{{ note.id }}" style="display:none;">
+                      <h4>{{ note.title }}</h4>
+                      <p>{{ note.content|linebreaks }}</p>
+                    </div>
+                  {% else %}
+                    <span class="muted">No file or text</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" class="empty">No meeting minutes yet</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Modal -->
+      <div id="minutesModal" class="modal">
+        <div class="modal-content">
+          <span class="close" onclick="closeMinutesModal()">&times;</span>
+          <div id="modal-body"></div>
+        </div>
+      </div>
+
+      <script>
+        function openAnnouncementModal(id) {
+          const modal = document.getElementById("announcementModal");
+          const body = document.getElementById("announcement-body");
+          const content = document.getElementById(`announcement-content-${id}`).innerHTML;
+          body.innerHTML = content;
+          modal.style.display = "block";
+        }
+
+        function closeAnnouncementModal() {
+          const modal = document.getElementById("announcementModal");
+          modal.style.display = "none";
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function (event) {
+          const modal = document.getElementById("announcementModal");
+          if (event.target == modal) modal.style.display = "none";
+        };
+        </script>
+
+
+        <script>
+        function openMinutesModal(noteId) {
+          const modal = document.getElementById("minutesModal");
+          const content = document.getElementById("minutes-content-" + noteId);
+          const modalBody = document.getElementById("modal-body");
+
+          modalBody.innerHTML = content.innerHTML;
+          modal.style.display = "flex"; // show modal
+        }
+
+        function closeMinutesModal() {
+          const modal = document.getElementById("minutesModal");
+          modal.style.display = "none";
+        }
+
+        // Close when clicking outside
+        window.onclick = function(event) {
+          const modal = document.getElementById("minutesModal");
+          if (event.target === modal) {
+            modal.style.display = "none";
+          }
+        };
+        </script>
+    </main>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="footer">
+      <p>
+        &copy; {{ this_year }} Tambul Hustle Youth Group. All rights reserved.
+      </p>
+    </footer>
+  </body>
+</html>

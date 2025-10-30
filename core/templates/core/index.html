@@ -1,0 +1,541 @@
+{% extends 'core/base.html' %} {% load static %} {% block title %}Home . Tambul
+Hustle Youth Group{% endblock %} {% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/index.css' %}" />
+{% endblock %} {% block content %}
+<main>
+  <section class="hero">
+    <div class="hero-art">
+      <video autoplay muted loop playsinline poster="{%static 'images/hero2.jpg'%}">
+        <source src="{%static 'images/hero-video.mp4'%}" type="video/mp4">
+      </video>
+    </div>
+    <div class="hero-overlay"></div>
+    <div class="container hero-inner">
+      <div class="hero-copy">
+        <div class="hero-text">
+          <h1>Building a Brighter Future</h1>
+          <p class="lead">A Home For Every Member</p>
+        </div>
+        <div class="hero-actions">
+          <a class="btn btn-primary btn-lg" href="{% url 'login'%}">Member Login</a>
+          <a class="btn btn-ghost btn-lg" href="#programs">Take a quick tour</a>
+        </div>
+      </div>
+    </div>
+    <div class="hero-stats">
+      <div class="container stat-grid">
+        <div>
+          <strong>21</strong>
+          <span>Active Youth Members</span>
+        </div>
+        <div>
+          <strong>Ksh 150K+</strong>
+          <span>Loan Disbursed Among Members</span>
+        </div>
+        <div>
+          <strong>96%</strong>
+          <span>Loan Repayment Rate</span>
+        </div>
+        <div>
+          <strong>10+</strong>
+          <span>Projects Engaged</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="programs" class="section section--light mission-vision">
+    <header class="mission-vision__header">
+      <p class="eyebrow">Our Focus</p>
+      <h2>Mission & Vision</h2>
+      <p class="mission-vision__intro">
+        We centre every member on shared values that keep Tambul Hustle Youth
+        Group moving forward together.
+      </p>
+    </header>
+    <div class="mission-vision__grid">
+      <article class="mission-vision__item">
+        <div class="mission-vision__media">
+          <img
+            src="{% static 'images/mission.jpg' %}"
+            alt="Tambul youth collaborating during a planning session"
+            loading="lazy"
+          />
+        </div>
+        <div class="mission-vision__body">
+          <h3>Mission</h3>
+          <p>
+            To empower youths through mentorship, community developments, and
+            sustainable projects that fosters unity, resilience, and long term
+            prosperity
+          </p>
+        </div>
+      </article>
+
+      <article class="mission-vision__item mission-vision__item--reverse">
+        <div class="mission-vision__media">
+          <img
+            src="{% static 'images/vision.jpg' %}"
+            alt="Celebrating community wins together"
+            loading="lazy"
+          />
+        </div>
+        <div class="mission-vision__body">
+          <h3>Vision</h3>
+          <p>
+            To be a leading youth-driven organization that promote growth, and
+            community transformation through innovative and impactful
+            initiatives
+          </p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section id="group-programs" class="section group-programs">
+    <header class="group-programs__header">
+      <p class="eyebrow">Our Core Programs</p>
+      <h2>Empowering Members Through Action</h2>
+      <p class="section-intro">
+        Tambul Hustle Youth Group brings together young people with a shared
+        mission of building a bright future.<br />
+        The group empowers members through collective savings, small loans, and
+        welfare support. <br />
+        Members contribute monthly, access affordable loans of Ksh 1,000–3,000
+        at 10% interest.<br />
+        Members stand together through welfare initiatives — driven by unity.
+      </p>
+    </header>
+
+    <div class="group-programs__grid">
+      <article class="group-programs__item">
+        <h3>Microloan & Savings Program</h3>
+        <span class="group-programs__divider"></span>
+        <p>
+          Affordable short-term loans and regular savings contributions that
+          promote growth, responsibility, and financial inclusion among youth
+          members.
+        </p>
+      </article>
+
+      <article class="group-programs__item">
+        <h3>Welfare & Support Fund</h3>
+        <span class="group-programs__divider"></span>
+        <p>
+          A solidarity system where members support one another during times of
+          hardship such as illness, bereavement, or emergencies.
+        </p>
+      </article>
+
+      <article class="group-programs__item">
+        <h3>Community Projects Initiative</h3>
+        <span class="group-programs__divider"></span>
+        <p>
+          Collaborative ventures that empower members through skills, group
+          farming, or small business projects that create shared income streams.
+        </p>
+      </article>
+
+      <article class="group-programs__item">
+        <h3>Transparency & Growth System</h3>
+        <span class="group-programs__divider"></span>
+        <p>
+          Digital record-keeping and reporting through the Tambul Hustle portal,
+          ensuring clear accountability and confidence among members.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section id="stories" class="section photo-stories">
+    <div class="photo-stories__header">
+      <p class="eyebrow">Our Gallery</p>
+      <h2>Pictures that tell our story</h2>
+      <p>
+        Each gathering, photo, and celebration is a snapshot of the Tambul
+        Hustle spirit. Here are a few moments that keep us inspired.
+      </p>
+    </div>
+    <div class="photo-stories__grid">
+      <figure
+        class="photo-stories__item js-photo-story"
+        data-story-initial="true"
+        data-photo-src="{% static 'images/AGM2023.jpg' %}"
+        data-photo-title="DURING AGM 2023"
+        data-photo-description="The 2023 AGM was our first since we started the group. Members came together to review the first year and planning
+        the next phase. It was also a day to reflect on our constitution and projects we can engage ourselves"
+      >
+        <button
+          type="button"
+          class="photo-stories__trigger"
+          aria-label="View photo story: Planning Bold Moves Together"
+        >
+          <img
+            src="{% static 'images/AGM2023.jpg' %}"
+            alt="Members During AGM 2023 Planning Together"
+            loading="lazy"
+          />
+        </button>
+        <figcaption>
+          <strong>Planning Bold Moves Together (AGM 2023)</strong>
+          <span>
+            AGM 2023 where members were reviewing the future plans for the group
+          </span>
+        </figcaption>
+      </figure>
+
+      <figure
+        class="photo-stories__item js-photo-story"
+        data-story-initial="true"
+        data-photo-src="{% static 'images/project12023.jpg' %}"
+        data-photo-title="Teamwork"
+        data-photo-description="Some of our group members came together to sow tree seeds that could later grow into seedlings
+        and boost our commitment to a greener future"
+      >
+        <button
+          type="button"
+          class="photo-stories__trigger"
+          aria-label="View photo story: Planning Bold Moves Together"
+        >
+          <img
+            src="{% static 'images/project12023.jpg' %}"
+            alt="Members During AGM 2023 Planning Together"
+            loading="lazy"
+          />
+        </button>
+        <figcaption>
+          <strong>Teamwork</strong>
+          <span>
+            Members were busy sowing trees seeds as part of the group`s environmental project
+          </span>
+        </figcaption>
+      </figure>
+
+      <figure
+        class="photo-stories__item js-photo-story"
+        data-story-initial="true"
+        data-photo-src="{% static 'images/project22023.jpg' %}"
+        data-photo-title="From Seeds to Seedlings"
+        data-photo-description="The tree seeds we sowed have now flourished into healthy seedlings.
+        Members visited the nursery to see the results of their teamwork and dedication to a greener environment"
+      >
+        <button
+          type="button"
+          class="photo-stories__trigger"
+          aria-label="View photo story: Planning Bold Moves Together"
+        >
+          <img
+            src="{% static 'images/project22023.jpg' %}"
+            alt="Members visiting Tree Nursery"
+            loading="lazy"
+          />
+        </button>
+        <figcaption>
+          <strong>Tree Nursery Visit</strong>
+          <span>
+            From Seeds to Seedlings
+          </span>
+        </figcaption>
+      </figure>
+
+
+      <figure
+        class="photo-stories__item js-photo-story"
+        data-story-initial="true"
+        data-photo-src="{% static 'images/project12024.jpg' %}"
+        data-photo-title="Community tree planting"
+        data-photo-description="Tambul Hustle Youth Group Members joined local pupils for a community tree planting initiative, sharing knowledge
+        and inspiring environmental among the younger generation. This reflects our commitment to greener environment and youth empowerment."
+      >
+        <button
+          type="button"
+          class="photo-stories__trigger"
+          aria-label="View photo story: Planting trees with pupils"
+        >
+          <img
+            src="{% static 'images/project12024.jpg' %}"
+            alt="Members with pupils"
+            loading="lazy"
+          />
+        </button>
+        <figcaption>
+          <strong>Members + Community</strong>
+          <span>
+            Tree planting with pupils
+          </span>
+        </figcaption>
+      </figure>
+
+      <figure
+        class="photo-stories__item js-photo-story"
+        data-story-initial="true"
+        data-photo-src="{% static 'images/community.jpg' %}"
+        data-photo-title="Community At Heart"
+        data-photo-description="Members volunteer during a community mentorship, trees planting session, showing what shared effort can achieve."
+      >
+        <button
+          type="button"
+          class="photo-stories__trigger"
+          aria-label="View photo story: Community At Heart"
+        >
+          <img
+            src="{% static 'images/community.jpg' %}"
+            alt="Youth group members planting trees"
+            loading="lazy"
+          />
+        </button>
+        <figcaption>
+          <strong>Community At Heart</strong>
+          <span>
+            Members volunteer and Mentorship
+          </span>
+        </figcaption>
+      </figure>
+      <figure
+        class="photo-stories__item js-photo-story"
+        data-photo-src="{% static 'images/celebrating.jpg' %}"
+        data-photo-title="Celebrating 2nd Anniversary"
+        data-photo-description="Celebrating our 2nd anniversary where members came together to celebrate two years of unity, resilience, and shared achievement. 
+            What began as a small vision has grown into a strong family built on trust, discipline, and community empowerment.
+            The celebration — marked with cake, laughter, and gratitude — reminded us how far we’ve come and how much more we can achieve together."
+      >
+        <button
+          type="button"
+          class="photo-stories__trigger"
+          aria-label="View photo story: Celebrating Wins"
+        >
+          <img
+            src="{% static 'images/celebrating.jpg' %}"
+            alt="Celebrating our 2nd anniversary"
+            loading="lazy"
+          />
+        </button>
+        <figcaption>
+          <strong>Celebrating Wins</strong>
+          <span>
+            Celebrating our 2nd Anniversary
+          </span>
+        </figcaption>
+      </figure>
+      <figure
+        class="photo-stories__item js-photo-story"
+        data-photo-src="{% static 'images/about.jpg' %}"
+        data-photo-title="AGM 2024"
+        data-photo-description="Members came together for 2024 AGM to reflect on our 2024 achievements, renew commitments, and set new goals for 2025.
+        The event was marked by celebrating 2 years of unity, having fun, and sharing growth of our group to the community."
+      >
+        <button
+          type="button"
+          class="photo-stories__trigger"
+          aria-label="View photo story: Learning Together"
+        >
+          <img
+            src="{% static 'images/about.jpg' %}"
+            alt="Workshop where members learn new skills"
+            loading="lazy"
+          />
+        </button>
+        <figcaption>
+          <strong>AGM 2024</strong>
+          <span>
+            Members came for 2024 AGM.
+          </span>
+        </figcaption>
+      </figure>
+    </div>
+    <div class="photo-stories__actions" hidden>
+      <button type="button" class="btn btn-primary photo-stories__load-more">
+        Load more stories
+      </button>
+    </div>
+    <div class="photo-modal" hidden>
+      <div class="photo-modal__backdrop" data-photo-close></div>
+      <div
+        class="photo-modal__dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="photo-modal-title"
+      >
+        <div class="photo-modal__media">
+          <img src="" alt="" id="photo-modal-image" />
+        </div>
+        <div class="photo-modal__content">
+          <header class="photo-modal__header">
+            <h3 id="photo-modal-title"></h3>
+            <button
+              type="button"
+              class="photo-modal__close"
+              aria-label="Close photo story"
+              data-photo-close
+            >
+              ×
+            </button>
+          </header>
+          <p class="photo-modal__description" id="photo-modal-description"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--light" aria-labelledby="members-title">
+    <div class="container insights">
+      <div>
+        <p class="eyebrow" id="members-title">Recognition</p>
+        <h2>Outstanding Members of the Year</h2>
+        <p class="section-intro">
+          These members have demonstrated exceptional commitment, growth, and
+          community spirit throughout the year.
+        </p>
+      </div>
+
+      <div class="insight-grid">
+        <article class="insight-card">
+          <img
+            src="{% static 'images/Chiri.jpg' %}"
+            alt="Photo of Faith Jepchirchir"
+            class="avatar"
+          />
+          <h3>Faith Jepchirchir Cheruiyot</h3>
+          <p class="time">Female Member of the Year</p>
+          <p>
+            Recognized for utilizing Tambul Hustle loan and repaying on time for
+            12 consecutive months.
+          </p>
+        </article>
+
+        <article class="insight-card">
+          <img
+            src="{% static 'images/kibii.jpg' %}"
+            alt="Photo of Mark Kibiwott"
+            class="avatar"
+          />
+          <h3>Mark Kibiwott</h3>
+          <p class="time">Male Member of the Year</p>
+          <p>
+            Celebrated for making the most productive use of Tambul Hustle loans
+            and demonstrating financial discipline.
+          </p>
+        </article>
+      </div>
+    </div>
+  </section>
+</main>
+{% endblock %} {% block extra_js %}
+<script>
+  const navToggle = document.querySelector(".nav-toggle");
+  const nav = document.querySelector(".nav-links");
+  navToggle?.addEventListener("click", () => {
+    nav?.classList.toggle("is-open");
+    navToggle.classList.toggle("is-open");
+  });
+
+  const galleryItems = Array.from(
+    document.querySelectorAll(".js-photo-story")
+  );
+  const loadMoreWrapper = document.querySelector(".photo-stories__actions");
+  const loadMoreButton = document.querySelector(".photo-stories__load-more");
+  let hiddenStories = galleryItems.filter(
+    (item) => !item.dataset.storyInitial
+  );
+
+  hiddenStories.forEach((item) => {
+    item.hidden = true;
+  });
+
+  if (loadMoreWrapper && loadMoreButton && hiddenStories.length) {
+    loadMoreWrapper.hidden = false;
+    const batchSize = 3;
+
+    loadMoreButton.addEventListener("click", () => {
+      const nextStories = hiddenStories.splice(0, batchSize);
+      nextStories.forEach((item) => {
+        item.hidden = false;
+      });
+
+      if (!hiddenStories.length) {
+        loadMoreWrapper.hidden = true;
+      }
+    });
+  }
+
+  const photoTriggers = document.querySelectorAll(".photo-stories__trigger");
+  const photoModal = document.querySelector(".photo-modal");
+
+  if (photoTriggers.length && photoModal) {
+    const modalImage = document.getElementById("photo-modal-image");
+    const modalTitle = document.getElementById("photo-modal-title");
+    const modalDescription = document.getElementById("photo-modal-description");
+    const closeElements = photoModal.querySelectorAll("[data-photo-close]");
+    let previousFocus = null;
+    let closeTimer = null;
+
+    const openModal = (figure, trigger) => {
+      const src = figure.dataset.photoSrc;
+      const title = figure.dataset.photoTitle || "";
+      const description = figure.dataset.photoDescription || "";
+      const altText = figure.querySelector("img")?.alt || title;
+
+      modalImage.src = src;
+      modalImage.alt = altText;
+      modalTitle.textContent = title;
+      modalDescription.textContent = description;
+
+      previousFocus = trigger;
+      if (closeTimer) {
+        clearTimeout(closeTimer);
+        closeTimer = null;
+      }
+      photoModal.hidden = false;
+      document.body.classList.add("is-modal-open");
+      requestAnimationFrame(() => {
+        photoModal.classList.add("is-open");
+        photoModal.querySelector(".photo-modal__close")?.focus();
+      });
+    };
+
+    const closeModal = () => {
+      if (photoModal.hidden) return;
+      photoModal.classList.remove("is-open");
+      document.body.classList.remove("is-modal-open");
+      closeTimer = window.setTimeout(() => {
+        photoModal.hidden = true;
+        modalImage.src = "";
+        if (previousFocus) {
+          previousFocus.focus();
+          previousFocus = null;
+        }
+      }, 280);
+    };
+
+    photoTriggers.forEach((trigger) => {
+      trigger.addEventListener("click", (event) => {
+        event.preventDefault();
+        const figure = trigger.closest(".photo-stories__item");
+        if (!figure) return;
+        openModal(figure, trigger);
+      });
+    });
+
+    closeElements.forEach((el) => {
+      el.addEventListener("click", (event) => {
+        event.preventDefault();
+        closeModal();
+      });
+    });
+
+    photoModal.addEventListener("click", (event) => {
+      if ("photoClose" in event.target.dataset) {
+        event.preventDefault();
+        closeModal();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !photoModal.hidden) {
+        event.preventDefault();
+        closeModal();
+      }
+    });
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,911 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Committee Dashboard | Tambul Hustle Youth Group</title>
+    <link rel="icon" type="image/svg+xml" sizes="any" href="{% static 'images/favicon.svg' %}" />
+    <link rel="alternate icon" type="image/png" href="{% static 'images/logo.png' %}" />
+    <link rel="stylesheet" href="{% static 'core/committee_dashboard.css' %}" />
+  </head>
+  <body>
+    <!-- ========== HEADER ========== -->
+    <header class="topbar">
+      <div class="brand">
+        <img
+          src="{% static 'images/logo.png' %}"
+          alt="Tambul logo"
+          class="brand-logo"
+        />
+        <div class="brand-copy">
+          <h2>Tambul Hustle Youth Group</h2>
+          <span class="sub">Committee Dashboard</span>
+        </div>
+      </div>
+      <div class="topbar-center">
+        <span class="topbar-greeting">Welcome, {{ user_display_name }}</span>
+      </div>
+      <div class="topbar-right">
+        <div class="user-info">
+          <form
+            action="{% url 'logout' %}"
+            method="post"
+            style="display: contents"
+          >
+            {% csrf_token %}
+            <button type="submit" class="logout-btn">Logout</button>
+          </form>
+        </div>
+      </div>
+    </header>
+
+    <!-- ========== TABS NAVIGATION ========== -->
+    <nav class="tabs-nav">
+      <button class="tab-btn active" data-tab="overview">Overview</button>
+      <button class="tab-btn" data-tab="personal-summary">My Summary</button>
+      <button class="tab-btn" data-tab="members">Members</button>
+      <button class="tab-btn" data-tab="loans">Loans</button>
+      <button class="tab-btn" data-tab="contributions">Contributions</button>
+      <button class="tab-btn" data-tab="welfare">Welfare</button>
+      <button class="tab-btn" data-tab="analytics">Analytics</button>
+      <button class="tab-btn" data-tab="reports">Reports</button>
+    </nav>
+    <div class="tab-scroll-hint" data-tab-scroll-hint>
+      <span>Swipe to view more tabs</span>
+      <span aria-hidden="true">→</span>
+    </div>
+
+    <!-- ========== TAB CONTENT ========== -->
+    <main class="tab-content">
+      <!--  OVERVIEW -->
+      <section id="overview" class="tab-section active">
+        <div class="overview-header">
+          <h3>Overview</h3>
+          {% if request.user.role == "coordinator" %}
+          <a href="{% url 'post-announcement' %}" class="btn btn-primary btn-sm">
+               Post Announcement
+            </a>
+          {% endif %}
+          {% if request.user.role == "secretary" %}
+          <a href="{% url 'post-meeting-note' %}" class="btn btn-primary" style="float:right; margin-top:-10px;">
+             Post Minutes
+          </a>
+          {% endif %}
+
+        </div>
+
+        <div class="cards">
+          <div class="card">
+            <h4>Total Members</h4>
+            <p>{{ total_members }}</p>
+          </div>
+          <div class="card">
+            <h4>Total Contributions ({{ this_year }})</h4>
+            <p>Ksh {{ total_contributions|floatformat:2 }}</p>
+          </div>
+          <div class="card">
+            <h4>Approved Loans</h4>
+            <p>{{ total_loans }}</p>
+          </div>
+          <div class="card">
+            <h4>Pending Loans</h4>
+            <p>{{ pending_loans }}</p>
+          </div>
+          <div class="card">
+            <h4>Total Welfare Fund</h4>
+            <p>Ksh {{ total_welfare|floatformat:2 }}</p>
+          </div>
+        </div>
+      </section>
+
+
+      <!--  MY SUMMARY TAB -->
+      <section id="personal-summary" class="tab-section">
+        <div class="summary-header">
+          <h3>My Summary</h3>
+          <div class="loan-cta">
+            {% if can_apply_loan %}
+              <a href="{% url 'apply-loan' %}" class="btn btn-primary"> Apply for Loan</a>
+            {% else %}
+              <span class="loan-note">
+                You currently have an active or unpaid loan. Clear it before applying again.
+              </span>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Personal Overview KPIs -->
+        <div class="cards">
+          <div class="card">
+            <h4>Ksh {{ my_contrib_ytd|floatformat:2 }}</h4>
+            <p>Total Contributions</p>
+          </div>
+          <div class="card">
+            <h4>{{ my_active_loan_count }}</h4>
+            <p>Active Loans</p>
+          </div>
+          <div class="card">
+            <h4>Ksh {{ my_outstanding_principal|floatformat:2 }}</h4>
+            <p>Total Loan Borrowed</p>
+          </div>
+          <div class="card">
+            <h4>Ksh {{ my_loan_balance|floatformat:2 }}</h4>
+            <p>Total Loan Balance</p>
+          </div>
+        </div>
+
+        <!-- Announcements -->
+        <section class="table-section">
+          <h3 class="section-title">Latest Announcements</h3>
+          <div class="table-wrap">
+            <table class="styled-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Title</th>
+                  <th>Message</th>
+                  <th>Date Posted</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for a in latest_announcements %}
+                <tr>
+                  <td>{{ forloop.counter }}</td>
+                  <td>{{ a.title }}</td>
+                  <td>{{ a.message|truncatewords:12 }}</td>
+                  <td>{{ a.published_at|date:"M d, Y" }}</td>
+                  <td>
+                    <button
+                      type="button"
+                      class="btn btn-outline-info btn-sm"
+                      onclick="openAnnouncementModal('{{ a.id }}')"
+                    >
+                      <i class="fa fa-eye"></i> View
+                    </button>
+
+                    <!-- Hidden modal content -->
+                    <div id="announcement-content-{{ a.id }}" style="display:none;">
+                      <h4>{{ a.title }}</h4>
+                      <p>{{ a.message|linebreaks }}</p>
+                      <p><strong>Date Posted:</strong> {{ a.published_at|date:"F d, Y" }}</p>
+                    </div>
+                  </td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="5" class="empty">No announcements yet</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Modal -->
+        <div id="announcementModal" class="modal">
+          <div class="modal-content">
+            <span class="close" onclick="closeAnnouncementModal()">&times;</span>
+            <div id="announcement-body"></div>
+          </div>
+        </div>
+
+        <!-- My Loans -->
+        <section class="table-section">
+          <h3 class="section-title">My Loans</h3>
+          <div class="table-wrap">
+            <table class="styled-table">
+              <thead>
+                <tr>
+                  <th>Loan Date</th>
+                  <th>Due Date</th>
+                  <th>Today</th>
+                  <th>Amount (Ksh)</th>
+                  <th>Interest (10%)</th>
+                  <th>Approval Status</th>
+                  <th>Repayment Status</th>
+                  <th>Months Overdue</th>
+                  <th>Penalty</th>
+                  <th>Total (Ksh)</th>
+                  <th>Updated On</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for loan in my_loans %}
+                <tr>
+                  <td>{{ loan.loan_date|date:"M d, Y" }}</td>
+                  <td>{{ loan.due_date|date:"M d, Y" }}</td>
+                  <td>{{ today|date:"M d, Y" }}</td>
+                  <td>{{ loan.amount|floatformat:0 }}</td>
+                  <td>{{ loan.interest|floatformat:0 }}</td>
+
+                  <!-- Approval Status -->
+                  <td>
+                    <span class="status status--{{ loan.status|slugify }}">
+                      {{ loan.status|capfirst }}
+                    </span>
+                  </td>
+
+                  <!-- Repayment Status -->
+                  <td>
+                    <span
+                      class="status status--{{ loan.repayment_status|slugify }}"
+                    >
+                      {{ loan.repayment_status|capfirst }}
+                    </span>
+                  </td>
+
+                  <!-- Overdue / Penalty / Total -->
+                  <td>{{ loan.months_overdue }}</td>
+                  <td>{{ loan.penalty|floatformat:0 }}</td>
+                  <td>{{ loan.total_balance|floatformat:0 }}</td>
+
+                  <!-- Updated -->
+                  <td>
+                    {{ loan.repayment_updated_at|date:"M d, Y"|default:"—" }}
+                  </td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="11" class="empty">No loan records found</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Monthly Contributions -->
+        <section class="table-section">
+          <h3 class="section-title">My Monthly Contributions</h3>
+          <div class="table-wrap">
+            <table class="styled-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Month</th>
+                  <th>Amount (Ksh)</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for c in recent_contributions %}
+                <tr>
+                  <td>{{ forloop.counter }}</td>
+                  <td>{{ c.month|date:"F Y" }}</td>
+                  <td>{{ c.amount|floatformat:2 }}</td>
+                  <td>{{ c.created_at|date:"M d, Y" }}</td>
+                  <td>
+                    <span class="status status--{{ c.status|slugify }}">
+                      {{ c.get_status_display }}
+                    </span>
+                  </td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="5" class="empty">No contributions yet</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+
+        <!-- My Welfare -->
+        <section class="table-section">
+          <h3 class="section-title">My Welfare Contributions</h3>
+          <div class="table-wrap">
+            <table class="styled-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Month</th>
+                  <th>Amount (Ksh)</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for w in my_welfare %}
+                <tr>
+                  <td>{{ forloop.counter }}</td>
+                  <td>{{ w.date_given|date:"F Y" }}</td>
+                  <td>{{ w.amount|floatformat:2 }}</td>
+                  <td>
+                    <span class="status status--{{ w.status|slugify }}">
+                      {{ w.status|capfirst }}
+                    </span>
+                  </td>
+                  <td>{{ w.date_given|date:"M d, Y" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="5" class="empty">No welfare records found</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+              <!-- Reports (Meeting Minutes) -->
+      <section class="table-section">
+        <h3 class="section-title">Reports & Meeting Minutes</h3>
+        <div class="table-wrap">
+          <table class="styled-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Title</th>
+                <th>Description</th>
+                <th>Date Posted</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for note in meeting_notes %}
+              <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ note.title }}</td>
+                <td>
+                  <span class="note-description" title="{{ note.description }}">
+                    {{ note.description|default:"—" }}
+                  </span>
+                </td>
+                <td>{{ note.created_at|date:"M d, Y" }}</td>
+                <td>
+                  {% if note.file %}
+                    <a href="{{ note.file.url }}" target="_blank" class="btn btn-primary btn-sm">
+                      Download
+                    </a>
+                  {% elif note.content %}
+                    <button type="button" class="btn btn-outline-info btn-sm"
+                      onclick="openMinutesModal('{{ note.id }}')">
+                      View Notes
+                    </button>
+
+                    <!-- Hidden modal content -->
+                    <div id="minutes-content-{{ note.id }}" style="display:none;">
+                      <h4>{{ note.title }}</h4>
+                      <p>{{ note.content|linebreaks }}</p>
+                    </div>
+                  {% else %}
+                    <span class="muted">No file or text</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" class="empty">No meeting minutes yet</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      </section>
+
+      <!-- Modal -->
+      <div id="minutesModal" class="modal">
+        <div class="modal-content">
+          <span class="close" onclick="closeMinutesModal()">&times;</span>
+          <div id="modal-body"></div>
+        </div>
+      </div>
+
+
+      <script>
+        function openAnnouncementModal(id) {
+          const modal = document.getElementById("announcementModal");
+          const body = document.getElementById("announcement-body");
+          const content = document.getElementById(`announcement-content-${id}`).innerHTML;
+          body.innerHTML = content;
+          modal.style.display = "block";
+        }
+
+        function closeAnnouncementModal() {
+          const modal = document.getElementById("announcementModal");
+          modal.style.display = "none";
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function (event) {
+          const modal = document.getElementById("announcementModal");
+          if (event.target == modal) modal.style.display = "none";
+        };
+        </script>
+
+
+      <script>
+      function openMinutesModal(noteId) {
+        const modal = document.getElementById("minutesModal");
+        const content = document.getElementById("minutes-content-" + noteId);
+        const modalBody = document.getElementById("modal-body");
+
+        modalBody.innerHTML = content.innerHTML;
+        modal.style.display = "flex"; // show modal
+      }
+
+      function closeMinutesModal() {
+        const modal = document.getElementById("minutesModal");
+        modal.style.display = "none";
+      }
+
+      // Close when clicking outside
+      window.onclick = function(event) {
+        const modal = document.getElementById("minutesModal");
+        if (event.target === modal) {
+          modal.style.display = "none";
+        }
+      };
+      </script>
+
+
+
+      <!--  MEMBERS -->
+      <section id="members" class="tab-section">
+        <h3>All Members</h3>
+        <div class="table-wrap">
+          <table class="styled-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>ID Number</th>
+                <th>Membership No.</th>
+                <th>Role</th>
+                <th>Username</th>
+                <th>Email</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for m in members %}
+              <tr>
+                <td>{{ m.first_name }} {{ m.last_name }}</td>
+                <td>{{ m.phone|default:"—" }}</td>
+                <td>{{ m.national_id|default:"—" }}</td>
+                <td>{{ m.membership_number }}</td>
+                <td>{{ m.role|capfirst }}</td>
+                <td>{{ m.username }}</td>
+                <td>{{ m.email }}</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="7" class="empty">No members found</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!--  LOANS -->
+      <section id="loans" class="tab-section">
+        <h3>All Loans</h3>
+
+        <div class="export-actions">
+          <a href="{% url 'export-loan-csv' %}" class="btn">Export CSV</a>
+          <a href="{% url 'export-loan-pdf' %}" class="btn">Download PDF</a>
+        </div>
+
+        <div class="table-wrap">
+          <table class="styled-table">
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Amount (Ksh)</th>
+                <th>Approval Status</th>
+                <th>Loan Date</th>
+                <th>Due Date</th>
+                <th>Repayment Status</th>
+                <th>Updated On</th>
+                {% if user.role == "chairperson" %}
+                <th>Approval Actions</th>
+                <th>Repayment Actions</th>
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for loan in loans %}
+              <tr>
+                <td>{{ loan.member.first_name }} {{ loan.member.last_name }}</td>
+                <td>Ksh {{ loan.amount|floatformat:2 }}</td>
+
+                <!-- Approval -->
+                <td>
+                  <span class="status status--{{ loan.status|slugify }}">
+                    {{ loan.status|capfirst }}
+                  </span>
+                </td>
+
+                <td>{{ loan.loan_date|date:"M d, Y" }}</td>
+                <td>{{ loan.due_date|date:"M d, Y" }}</td>
+
+                <!-- Repayment -->
+                <td>
+                  <span
+                    class="status status--{{ loan.repayment_status|slugify }}"
+                  >
+                    {{ loan.repayment_status|capfirst }}
+                  </span>
+                </td>
+
+                <td>
+                  {{ loan.repayment_updated_at|date:"M d, Y"|default:"—" }}
+                </td>
+
+                {% if user.role == "chairperson" %}
+                <td>
+                  <div class="loan-actions loan-actions--approval">
+                    <a
+                      href="{% url 'mark-loan-status' loan.id 'approved' %}"
+                      class="btn btn-small btn-success"
+                      >Approve</a
+                    >
+                    <a
+                      href="{% url 'mark-loan-status' loan.id 'rejected' %}"
+                      class="btn btn-small btn-danger"
+                      >Reject</a
+                    >
+
+                    
+                  </div>
+                </td>
+                <td>
+                  <div class="loan-actions">
+                    <a
+                      href="{% url 'mark-loan-paid' loan.id 'fully_paid' %}"
+                      class="btn btn-small btn-success"
+                      >Fully Paid</a
+                    >
+                    <a
+                      href="{% url 'mark-loan-paid' loan.id 'partially_paid' %}"
+                      class="btn btn-small btn-warning"
+                      >Partial</a
+                    >
+                    <a
+                      href="{% url 'mark-loan-paid' loan.id 'not_paid' %}"
+                      class="btn btn-small btn-danger"
+                      >Not Paid</a
+                    >
+                  </div>
+                </td>
+                {% endif %}
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="{% if user.role == 'chairperson' %}9{% else %}7{% endif %}" class="empty">No loans yet</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!--  CONTRIBUTIONS -->
+      <section id="contributions" class="tab-section">
+        <h3>All Contributions</h3>
+
+        <div class="export-actions">
+          <a href="{% url 'export-contrib-csv' %}" class="btn">Export CSV</a>
+          <a href="{% url 'export-contrib-pdf' %}" class="btn">Download PDF</a>
+        </div>
+
+        <div class="table-wrap">
+          <table class="styled-table">
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Amount (Ksh)</th>
+                <th>Month</th>
+                <th>Date Added</th>
+                <th>Status</th>
+                <th>Updated On</th>
+                {% if user.role == "treasurer" %}
+                <th>Actions</th>
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in contributions %}
+              <tr>
+                <td>{{ c.member.username }}</td>
+                <td>{{ c.amount|floatformat:2 }}</td>
+                <td>{{ c.month|date:"F Y" }}</td>
+                <td>{{ c.created_at|date:"M d, Y" }}</td>
+
+                <td>
+                  <span class="status status--{{ c.status|slugify }}">
+                    {{ c.get_status_display }}
+                  </span>
+                </td>
+
+                <td>{{ c.updated_at|date:"M d, Y"|default:"—" }}</td>
+
+                {% if user.role == "treasurer" %}
+                <td>
+                  <a href="{% url 'mark-contrib-status' c.id 'fully_paid' %}" class="btn btn-small btn-success">Fully Paid</a>
+                  <a href="{% url 'mark-contrib-status' c.id 'partially_paid' %}" class="btn btn-small btn-warning">Partial</a>
+                  <a href="{% url 'mark-contrib-status' c.id 'late' %}" class="btn btn-small btn-danger">Late</a>
+                </td>
+                {% endif %}
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="7" class="empty">No contributions yet</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+
+      <!--  WELFARE -->
+      <section id="welfare" class="tab-section">
+        <h3>Welfare Records</h3>
+
+        <div class="export-actions">
+          <a class="btn" href="{% url 'export-welfare-csv' %}">Export CSV</a>
+          <a class="btn" href="{% url 'export-welfare-pdf' %}">Download PDF</a>
+        </div>
+
+        <div class="table-wrap">
+          <table class="styled-table">
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Amount (Ksh)</th>
+                <th>Description</th>
+                <th>Status</th>
+                <th>Updated On</th>
+                {% if user.role == "welfare" %}
+                <th>Actions</th>
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for w in welfare_records %}
+              <tr>
+                <td>{{ w.member.username }}</td>
+                <td>{{ w.amount|floatformat:2 }}</td>
+                <td>{{ w.description }}</td>
+                <td>
+                  <span class="status status--{{ w.status|slugify }}">
+                    {{ w.get_status_display }}
+                  </span>
+                </td>
+                <td>{{ w.updated_at|date:"M d, Y"|default:"—" }}</td>
+
+                {% if user.role == "welfare" %}
+                <td>
+                  <a href="{% url 'mark-welfare-status' w.id 'fully paid' %}" class="btn btn-small btn-success">Fully Paid</a>
+                  <a href="{% url 'mark-welfare-status' w.id 'partially paid' %}" class="btn btn-small btn-warning">Partial</a>
+                  <a href="{% url 'mark-welfare-status' w.id 'not paid' %}" class="btn btn-small btn-secondary">Not Yet Paid</a>
+                </td>
+                {% endif %}
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="6" class="empty">No welfare records yet</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 📈 ANALYTICS -->
+      <section id="analytics" class="tab-section">
+        <h3>Analytics Overview</h3>
+        <div class="chart-grid">
+          <div class="chart-box">
+            <h4>Monthly Contributions ({{ this_year }})</h4>
+            <canvas id="contribChart"></canvas>
+          </div>
+
+          <div class="chart-box">
+            <h4>Loan Status Distribution</h4>
+            <canvas id="loanChart"></canvas>
+          </div>
+
+          <div class="chart-box">
+            <h4>Welfare Summary by Status</h4>
+            <canvas id="welfareChart"></canvas>
+          </div>
+
+          <div class="chart-box">
+            <h4>Top 5 Contributors</h4>
+            <canvas id="topContribChart"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!--  REPORTS -->
+      <section id="reports" class="tab-section">
+        <h3>Reports</h3>
+
+        <div class="export-actions">
+          <a href="{% url 'export-loan-csv' %}" class="btn"
+            >Export Loan as CSV</a
+          >
+          <a href="{% url 'export-loan-pdf' %}" class="btn"
+            >Download Loan as PDF</a
+          >
+        </div>
+
+        <div class="export-actions">
+          <a href="{% url 'export-contrib-csv' %}" class="btn"
+            >Export Contributions as CSV</a
+          >
+          <a href="{% url 'export-contrib-pdf' %}" class="btn"
+            >Download Contributions as PDF</a
+          >
+        </div>
+
+        <div class="export-actions">
+          <a href="{% url 'export-welfare-csv' %}" class="btn"
+            >Export Welfare CSV</a
+          >
+          <a href="{% url 'export-welfare-pdf' %}" class="btn">Download PDF</a>
+        </div>
+      </section>
+    </main>
+
+    <!-- ========== FOOTER ========== -->
+    <footer class="footer">
+      <p>
+        © {{ today|date:"Y" }} Tambul Hustle Youth Group. All Rights Reserved.
+      </p>
+    </footer>
+
+    <!-- ========== SCRIPT (Tab Logic) ========== -->
+    <script>
+      const tabs = document.querySelectorAll(".tab-btn");
+      const sections = document.querySelectorAll(".tab-section");
+      const tabsNav = document.querySelector(".tabs-nav");
+      const tabScrollHint = document.querySelector("[data-tab-scroll-hint]");
+
+      const updateTabScrollHint = () => {
+        if (!tabsNav || !tabScrollHint) return;
+        const canScroll = tabsNav.scrollWidth - tabsNav.clientWidth > 1;
+
+        if (!canScroll) {
+          tabScrollHint.hidden = true;
+          return;
+        }
+
+        const atEnd =
+          tabsNav.scrollWidth - tabsNav.clientWidth - tabsNav.scrollLeft <= 16;
+        tabScrollHint.hidden = atEnd;
+      };
+
+      tabs.forEach((tab) => {
+        tab.addEventListener("click", () => {
+          tabs.forEach((btn) => btn.classList.remove("active"));
+          sections.forEach((sec) => sec.classList.remove("active"));
+
+          tab.classList.add("active");
+          document.getElementById(tab.dataset.tab).classList.add("active");
+          updateTabScrollHint();
+        });
+      });
+
+      tabsNav?.addEventListener("scroll", () => {
+        if (!tabScrollHint) return;
+        if (tabsNav.scrollLeft > 8) {
+          tabScrollHint.hidden = true;
+        } else {
+          updateTabScrollHint();
+        }
+      });
+
+      tabsNav?.addEventListener(
+        "wheel",
+        (event) => {
+          if (window.innerWidth > 768) return;
+          if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+          event.preventDefault();
+          tabsNav.scrollBy({
+            left: event.deltaY,
+            behavior: "smooth",
+          });
+        },
+        { passive: false }
+      );
+
+      window.addEventListener("resize", updateTabScrollHint);
+      updateTabScrollHint();
+    </script>
+
+    <!-- ===== Chart.js Library ===== -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+      const chartData = JSON.parse("{{ chart_datasets_json|escapejs }}");
+      const {
+        monthlyLabels = [],
+        monthlyValues = [],
+        loanLabels = [],
+        loanCounts = [],
+        welfareLabels = [],
+        welfareTotals = [],
+        topContributors = [],
+        topContribValues = [],
+      } = chartData;
+
+      // Monthly Contributions Trend
+      new Chart(document.getElementById("contribChart"), {
+        type: "line",
+        data: {
+          labels: monthlyLabels,
+          datasets: [
+            {
+              label: "Contributions (Ksh)",
+              data: monthlyValues,
+              borderColor: "#00bfa5",
+              backgroundColor: "rgba(0,191,165,0.15)",
+              tension: 0.4,
+              fill: true,
+            },
+          ],
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } },
+      });
+
+      // Loan Status Distribution
+      new Chart(document.getElementById("loanChart"), {
+        type: "doughnut",
+        data: {
+          labels: loanLabels,
+          datasets: [
+            {
+              data: loanCounts,
+              backgroundColor: ["#00bfa5", "#ffb300", "#e53935"],
+            },
+          ],
+        },
+        options: { responsive: true },
+      });
+
+      // Welfare Summary by Status
+      new Chart(document.getElementById("welfareChart"), {
+        type: "bar",
+        data: {
+          labels: welfareLabels,
+          datasets: [
+            {
+              label: "Welfare (Ksh)",
+              data: welfareTotals,
+              backgroundColor: ["#00bfa5", "#e53935", "#ffb300"],
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          indexAxis: "y",
+          plugins: { legend: { display: false } },
+        },
+      });
+
+      // Top 5 Contributors
+      new Chart(document.getElementById("topContribChart"), {
+        type: "bar",
+        data: {
+          labels: topContributors,
+          datasets: [
+            {
+              label: "Total (Ksh)",
+              data: topContribValues,
+              backgroundColor: "#003b46",
+            },
+          ],
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } },
+      });
+    </script>
+  </body>
+</html>

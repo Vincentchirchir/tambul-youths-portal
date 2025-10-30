@@ -1,0 +1,53 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Post Announcement</title>
+    <link rel="icon" type="image/svg+xml" sizes="any" href="{% static 'images/favicon.svg' %}" />
+    <link rel="alternate icon" type="image/png" href="{% static 'images/logo.png' %}" />
+    <link rel="stylesheet" href="{% static 'core/post_announcement.css' %}" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <img
+          src="{% static 'images/logo.png' %}"
+          alt="Tambul Hustle logo"
+          class="brand-logo"
+        />
+        <div class="brand-copy">
+          <h2>Tambul Hustle Youth Group</h2>
+          <span class="sub">Coordinator — Post Announcement</span>
+        </div>
+      </div>
+      <div class="topbar-center">
+        <span class="greeting">Welcome, {{ request.user.first_name }}</span>
+      </div>
+      <div class="user-actions">
+        <form action="{% url 'logout' %}" method="post" style="display: contents;">
+          {% csrf_token %}
+          <button type="submit" class="logout-btn">Logout</button>
+        </form>
+      </div>
+    </header>
+
+    <main class="content">
+      <h3>New Announcement</h3>
+
+      <form method="post" class="form-card">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Post</button>
+          <a href="{% url 'committee-dashboard' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+      </form>
+    </main>
+
+    <footer class="footer">
+      <p>© {{ today|date:"Y" }} Tambul Hustle Youth Group. All Rights Reserved.</p>
+    </footer>
+  </body>
+</html>

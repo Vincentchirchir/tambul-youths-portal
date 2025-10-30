@@ -1,0 +1,55 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Create Announcement | Tambul Hustle Youth Group</title>
+  <link rel="icon" type="image/svg+xml" sizes="any" href="{% static 'images/favicon.svg' %}" />
+  <link rel="alternate icon" type="image/png" href="{% static 'images/logo.png' %}" />
+  <link rel="stylesheet" href="{% static 'core/announcement.css' %}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img
+        src="{% static 'images/logo.png' %}"
+        alt="Tambul Hustle logo"
+        class="brand-logo"
+      />
+      <div class="brand-copy">
+        <h2>Tambul Hustle Youth Group</h2>
+        <span class="sub">Coordinator Panel</span>
+      </div>
+    </div>
+    <div class="topbar-center">
+      <span class="greeting">Welcome, {{ request.user.first_name }}</span>
+    </div>
+    <div class="user-actions">
+      <form action="{% url 'logout' %}" method="post" style="display: inline;">
+        {% csrf_token %}
+        <button type="submit" class="logout-btn">Logout</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="form-container">
+    <h2>Post a New Announcement</h2>
+    <form method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <div class="actions">
+        <button type="submit" class="btn btn-primary">Post Announcement</button>
+        <a href="{% url 'committee-dashboard' %}" class="btn btn-secondary">Cancel</a>
+      </div>
+    </form>
+  </main>
+
+  {% if messages %}
+  <div class="messages">
+    {% for message in messages %}
+      <div class="alert {{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</body>
+</html>

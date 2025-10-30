@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Poppins:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="icon" type="image/svg+xml" sizes="any" href="{% static 'images/favicon.svg' %}" />
+    <link rel="alternate icon" type="image/png" href="{% static 'images/logo.png' %}" />
+    <link rel="stylesheet" href="{% static 'core/base.css' %}" />
+    <title>{% block title %}Tambul Hustle Youth Group{% endblock %}</title>
+    {% block extra_css %}{% endblock %}
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container nav">
+        <a class="brand" href="/">
+          <img
+            src="{% static 'images/logo.png' %}"
+            alt="Tambul Hustle logo"
+            class="logo"
+          />
+          <span class="brand-name">Tambul Hustle Youth Group</span>
+        </a>
+        <nav class="nav-links" aria-label="Primary navigation">
+          <a href="#about">About Us</a>
+          <a href="#programs">Group Programs</a>
+          <a href="#stories">Stories</a>
+          <a href="#contact">Contact</a>
+          <a class="btn btn-primary" href="{% url 'login' %}">Member Login</a>
+        </nav>
+        <button class="nav-toggle" aria-label="Toggle navigation">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+    </header>
+
+    {% block content %}{% endblock %}
+
+    <footer id="contact" class="site-footer">
+      <div class="container footer-grid">
+        <div class="footer-brand">
+          <img
+            src="{% static 'images/logo.png' %}"
+            alt="Tambul Hustle logo"
+            class="logo small"
+          />
+          <div>
+            <strong>Tambul Hustle Youth Group</strong>
+            <p class="muted">
+              Building a Brigter Future. <br> A Home For Every Member
+            </p>
+          </div>
+        </div>
+        <div>
+          <h4>Visit</h4>
+          <p class="muted">
+            Tambul Village<br />
+            Along Hz, Kapkitony Rd <br />
+            Elgeyo Marakwet County, Kenya
+          </p>
+        </div>
+        <div>
+          <h4>Contact</h4>
+          <ul class="foot-links">
+            <li>
+              <a href="mailto:tambulhustleyouthgroup@gmail.com"
+                >tambulhustleyouthgroup@gmail.com</a
+              >
+            </li>
+            <li>
+              <a href="https://wa.me/254706600688" target="_blank" rel="noopener"
+                >WhatsApp: +254 706 600 688</a
+              >
+            </li>
+          </ul>
+        </div>
+        <div class="footer-socials">
+          <h4>Quick links</h4>
+          <ul class="foot-links">
+            <li><a href="#programs">Programs</a></li>
+            <li><a href="#group-programs">Group programs</a></li>
+            <li><a href="#">Support desk</a></li>
+          </ul>
+          <div class="socials">
+            <a href="#" aria-label="Facebook">Facebook</a>
+          </div>
+        </div>
+      </div>
+      <div class="container footer-bottom">
+        <p class="muted">
+          © {% now "Y" %} Tambul Hustle Youth Group. All rights reserved.
+        </p>
+      </div>
+    </footer>
+
+    {% block extra_js %}{% endblock %}
+  </body>
+</html>

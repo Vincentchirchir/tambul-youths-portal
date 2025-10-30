@@ -1,0 +1,26 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'core/apply_loan.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="loan-apply">
+  <div class="loan-container">
+    <h2>Apply for a Loan</h2>
+    <p>Please fill out the form below to request a loan.</p>
+
+    <form method="post" class="loan-form">
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="id_amount">Loan Amount (Ksh)</label>
+        {{ form.amount }}
+      </div>
+
+      <button type="submit" class="btn btn-primary">Submit Application</button>
+      <a href="{{ cancel_url }}" class="btn btn-secondary">Cancel</a>
+    </form>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends 'core/base.html' %} {%load static%} {%block title %} Login - Tambul
+Hustle Youth Group {%endblock%} {%block extra_css%}
+<link rel="stylesheet" href="{%static 'core/login.css'%}"/>
+{%endblock%} {%block content%}
+<main class="login-page">
+    <section class="login-box">
+        <div class="login-brand">
+            <img src="{% static 'images/logo.png' %}" alt="Tambul Hustle Youth Group logo" class="login-logo">
+            <p class="brand-text"></p>
+        </div>
+        <h1>Member Login</h1>
+        <form method="POST">
+            {%csrf_token%}
+            {%if form.errors%}
+                <p class="error-msg">Invalid username or password</p>
+            {%endif%}
+            <label>Username</label>
+            <input type="text" name="username" id="id_username" placeholder="Enter your username" required>
+            <label>Password</label>
+            <input type="password" name="password" id="id_password" placeholder="Enter your password" required>
+            <button type="submit">Login</button>
+        </form>
+    </section>
+</main>
+{% endblock %}
