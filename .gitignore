@@ -1,0 +1,96 @@
+# ==========================
+# Django / Python
+# ==========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+.eggs/
+*.log
+
+# ==========================
+# Project Files
+# ==========================
+db.sqlite3
+*.db
+/media/
+staticfiles/
+static_root/
+tmp/
+*.bak
+*.swp
+
+# ==========================
+# Virtual Environments
+# ==========================
+venv/
+env/
+*/__pycache__/
+*/migrations/__pycache__/
+*/migrations/*.pyc
+*/migrations/*.pyo
+*/migrations/*.pyd
+*.py[cod]
+*/migrations/__pycache__/
+
+# ==========================
+# Environment & Config Files
+# ==========================
+.env
+.env.local
+.env.production
+.env.dev
+.DS_Store
+Thumbs.db
+
+# ==========================
+# IDE / Editor Files
+# ==========================
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ==========================
+# System / OS
+# ==========================
+*.bak
+*.tmp
+*.log
+*.swp
+*.lock
+*.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+
+# ==========================
+# Render & Deployment
+# ==========================
+.render-build/
+render.yaml
+*.tar
+*.zip
+*.tgz
+*.gz
+
+# ==========================
+# Cache / Backup
+# ==========================
+.cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+*.bak
+
+# ==========================
+# Jupyter / Misc
+# ==========================
+.ipynb_checkpoints
+*.ipynb
