@@ -94,3 +94,6 @@ __pycache__/
 # ==========================
 .ipynb_checkpoints
 *.ipynb
+tambulhustleygroup_env/
+*.pyc
+__pycache__/
