@@ -1,0 +1,29 @@
+# --- Core Framework ---
+Django==5.2.7
+
+# --- Database (PostgreSQL) ---
+psycopg2-binary==2.9.9
+dj-database-url==2.2.0
+
+# --- Environment Variables ---
+python-decouple==3.8
+django-environ==0.11.2
+
+# --- Static Files & Deployment ---
+whitenoise==6.6.0
+gunicorn==23.0.0
+
+# --- PDF & Reports ---
+reportlab==4.2.2
+
+# --- HTTP Requests / API Calls ---
+requests==2.32.3
+
+# --- Image / Media Support ---
+Pillow==10.4.0
+
+# --- Timezone and Date Helpers ---
+python-dateutil==2.9.0.post0
+
+# --- Optional Utilities ---
+typing-extensions==4.12.2
