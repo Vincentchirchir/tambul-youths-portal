@@ -28,7 +28,7 @@ DEBUG = False
 ALLOWED_HOSTS = [
     "tambulyouths.onrender.com",
     "localhost",
-    "127.0.0.1",
+    "127.0.0.1"
 ]
 
 
