@@ -26,10 +26,9 @@ SECRET_KEY = 'django-insecure-=pedvou_cmfo*1admr%42iq7b-o9&2%$xi=7v2gw(t7pit&j9u
 DEBUG = False
 
 ALLOWED_HOSTS = [
-    "tambulyouths.onrender.com"
-    "localhost"
-    "127.0.0.1"
-    "*"
+    "tambulyouths.onrender.com",
+    "localhost",
+    "127.0.0.1",
 ]
 
 
