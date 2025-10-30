@@ -2,7 +2,7 @@
 Django==5.2.7
 
 # --- Database (PostgreSQL) ---
-psycopg[binary]==3.2.1
+psycopg[binary]
 dj-database-url==2.2.0
 
 # --- Environment Variables ---
