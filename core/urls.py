@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.urls import path
-from .views import Index, MemberDashboardView, CommitteeDashboardView, ExportLoansCSV, ExportLoansPDF, ExportContributionsCSV, ExportContributionsPDF, ExportWelfareCSV, ExportWelfarePDF, LoanRepaymentUpdateView, ContributionStatusUpdateView, WelfareStatusUpdateView, LoanApplicationView, LoanApprovalUpdateView, AnnouncementCreateView, PostMeetingNoteView, PostAnnouncementView
+from .views import Index, MemberDashboardView, CommitteeDashboardView, ExportLoansCSV, ExportLoansPDF, ExportContributionsCSV, ExportContributionsPDF, ExportWelfareCSV, ExportWelfarePDF, LoanRepaymentUpdateView, ContributionStatusUpdateView, WelfareStatusUpdateView, LoanApplicationView, LoanApprovalUpdateView, AnnouncementCreateView, PostMeetingNoteView, PostAnnouncementView, ProfileView, EditProfileView, NotificationListView, MarkNotificationReadView, NotificationFetchView, AnnouncementDetailView, MeetingMinutesDetailView
 
 
 urlpatterns = [
@@ -21,5 +21,13 @@ urlpatterns = [
     path("announcement/create/", AnnouncementCreateView.as_view(), name="create-announcement"),
     path("post-minutes/", PostMeetingNoteView.as_view(), name="post-meeting-note"),
     path("post-announcement/", PostAnnouncementView.as_view(), name="post-announcement"),
+    path("profile/", ProfileView.as_view(), name="profile"),
+    path("profile/edit/", EditProfileView.as_view(), name="edit-profile"),
+    path("notifications/", NotificationListView.as_view(), name="notifications"),
+    path("notifications/read/<int:pk>/", MarkNotificationReadView.as_view(), name="mark_notification_read"),
+    path("notifications/fetch/", NotificationFetchView.as_view(), name="notification_fetch"),
+    path("announcements/<int:pk>/", AnnouncementDetailView.as_view(), name="announcement-detail"),
+    path("minutes/<int:pk>/", MeetingMinutesDetailView.as_view(), name="meeting-minutes-detail"),
+
 
 ]

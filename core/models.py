@@ -4,6 +4,7 @@ from accounts.models import User
 from datetime import date
 from decimal import Decimal
 from dateutil.relativedelta import relativedelta
+from django.contrib.auth import get_user_model
 
 class Loan(models.Model):
     member=models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -121,8 +122,25 @@ class Announcement(models.Model):
     title = models.CharField(max_length=200)
     message = models.TextField()
     published_at = models.DateTimeField(auto_now_add=True)
+    related_name="announcements"
 
     class Meta:
         permissions = [
             ("make_announcement", "Can publish group announcements"),
         ]
+
+User = get_user_model()
+
+class Notification(models.Model):
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    link = models.URLField(blank=True, null=True)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.title} → {self.recipient.email}"

@@ -1,0 +1,75 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Edit Profile | Tambul Hustle Youth Group</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/favicon.svg' %}" />
+    <link rel="stylesheet" href="{% static 'core/edit_profile.css' %}" />
+  </head>
+  <body>
+    <!-- HEADER -->
+    <header class="main-header">
+      <div class="brand">
+        <img src="{% static 'images/logo.png' %}" alt="Tambul Logo" class="logo" />
+        <div class="brand-text">
+          <h1>Tambul Hustle Youth Group</h1>
+          <span>Edit My Profile</span>
+        </div>
+      </div>
+      <a href="{% url 'profile' %}" class="back-btn">← Back</a>
+    </header>
+
+    <!-- MAIN -->
+    <main class="edit-container">
+      <div class="edit-card">
+        <div class="profile-header">
+          <div class="avatar">
+            {{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}
+          </div>
+          <h2>{{ request.user.first_name|capfirst }} {{ request.user.last_name|capfirst }}</h2>
+          <p>Edit your personal details below.</p>
+        </div>
+
+        <form method="post" class="edit-form">
+          {% csrf_token %}
+          <div class="form-group">
+            <label for="first_name">First Name</label>
+            {{ form.first_name }}
+          </div>
+
+          <div class="form-group">
+            <label for="last_name">Last Name</label>
+            {{ form.last_name }}
+          </div>
+
+          <div class="form-group">
+            <label for="email">Email</label>
+            {{ form.email }}
+          </div>
+
+          <div class="form-group">
+            <label for="phone">Phone</label>
+            {{ form.phone }}
+          </div>
+
+          <div class="form-group">
+            <label for="id_number">ID Number</label>
+            {{ form.national_id }}
+          </div>
+
+          <div class="btn-group">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a href="{% url 'profile' %}" class="btn btn-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+      <p>© {{ this_year }} Tambul Hustle Youth Group. All rights reserved.</p>
+    </footer>
+  </body>
+</html>

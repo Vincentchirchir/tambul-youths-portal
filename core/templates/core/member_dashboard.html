@@ -11,24 +11,57 @@
   </head>
   <body>
     <!-- ===== HEADER ===== -->
-    <header class="main-header">
-      <div class="header-left">
+    <header class="topbar">
+      <div class="brand">
         <img
           src="{% static 'images/logo.png' %}"
-          alt="Tambul Logo"
-          class="logo"
+          alt="Tambul logo"
+          class="brand-logo"
         />
-        <h1 class="title">Tambul Hustle Youth Group Member Dashboard</h1>
+        <div class="brand-copy">
+          <h2>Tambul Hustle Youth Group</h2>
+          <span class="sub">Member Dashboard</span>
+        </div>
       </div>
 
-      <div class="header-right">
+      <div class="topbar-center">
+        <span class="topbar-greeting">Welcome, {{ request.user.first_name }}</span>
+      </div>
+
+      <div class="topbar-right">
+        <div class="notif-container">
+          <button id="notif-btn" class="notif-btn">
+            🔔
+            <span id="notif-count" class="notif-count">
+              {% if unread_notifications %}{{ unread_notifications }}{% endif %}
+            </span>
+          </button>
+          <div id="notif-panel" class="notif-panel hidden">
+            <div id="notif-list"></div>
+            <button id="load-more" class="load-more" hidden>Load More</button>
+          </div>
+        </div>
         <span class="year">{{ this_year }}</span>
-        <form action="{% url 'logout' %}" method="post" style="display: inline">
-          {% csrf_token %}
-          <button type="submit" class="logout-btn">Logout</button>
-        </form>
+        <div class="profile-dropdown">
+          <button class="profile-toggle">
+            <span class="profile-icon">
+              {{ request.user.first_name|slice:":1" }}{{ request.user.last_name|slice:":1" }}
+            </span>
+            <span class="profile-name">{{ request.user.first_name }}</span>
+            <span class="caret">▾</span>
+          </button>
+          <div class="profile-menu hidden">
+            <a href="{% url 'profile' %}">My Profile</a>
+            <form action="{% url 'logout' %}" method="post">
+              {% csrf_token %}
+              <button type="submit">Logout</button>
+            </form>
+          </div>
+        </div>
       </div>
     </header>
+
+    {% include "core/partials/messages.html" %}
 
     <!-- ===== MAIN CONTENT ===== -->
     <main class="dashboard">
@@ -326,58 +359,319 @@
         </div>
       </div>
 
-      <script>
-        function openAnnouncementModal(id) {
-          const modal = document.getElementById("announcementModal");
-          const body = document.getElementById("announcement-body");
-          const content = document.getElementById(`announcement-content-${id}`).innerHTML;
-          body.innerHTML = content;
-          modal.style.display = "block";
-        }
-
-        function closeAnnouncementModal() {
-          const modal = document.getElementById("announcementModal");
-          modal.style.display = "none";
-        }
-
-        // Close modal when clicking outside
-        window.onclick = function (event) {
-          const modal = document.getElementById("announcementModal");
-          if (event.target == modal) modal.style.display = "none";
-        };
-        </script>
-
-
-        <script>
-        function openMinutesModal(noteId) {
-          const modal = document.getElementById("minutesModal");
-          const content = document.getElementById("minutes-content-" + noteId);
-          const modalBody = document.getElementById("modal-body");
-
-          modalBody.innerHTML = content.innerHTML;
-          modal.style.display = "flex"; // show modal
-        }
-
-        function closeMinutesModal() {
-          const modal = document.getElementById("minutesModal");
-          modal.style.display = "none";
-        }
-
-        // Close when clicking outside
-        window.onclick = function(event) {
-          const modal = document.getElementById("minutesModal");
-          if (event.target === modal) {
-            modal.style.display = "none";
-          }
-        };
-        </script>
     </main>
+
+    <script>
+      function openAnnouncementModal(id) {
+        const modal = document.getElementById("announcementModal");
+        const body = document.getElementById("announcement-body");
+        const content = document.getElementById(`announcement-content-${id}`).innerHTML;
+        body.innerHTML = content;
+        modal.style.display = "block";
+      }
+
+      function closeAnnouncementModal() {
+        const modal = document.getElementById("announcementModal");
+        modal.style.display = "none";
+      }
+
+      function openMinutesModal(noteId) {
+        const modal = document.getElementById("minutesModal");
+        const content = document.getElementById(`minutes-content-${noteId}`);
+        const modalBody = document.getElementById("modal-body");
+
+        modalBody.innerHTML = content.innerHTML;
+        modal.style.display = "flex";
+      }
+
+      function closeMinutesModal() {
+        const modal = document.getElementById("minutesModal");
+        modal.style.display = "none";
+      }
+
+      window.addEventListener("click", (event) => {
+        const announcementModal = document.getElementById("announcementModal");
+        const minutesModal = document.getElementById("minutesModal");
+
+        if (event.target === announcementModal) {
+          announcementModal.style.display = "none";
+        }
+
+        if (event.target === minutesModal) {
+          minutesModal.style.display = "none";
+        }
+      });
+    </script>
+
+    <script>
+      const chartData = JSON.parse("{{ chart_datasets_json|escapejs }}");
+      const {
+        monthlyLabels = [],
+        monthlyValues = [],
+        loanLabels = [],
+        loanCounts = [],
+        welfareLabels = [],
+        welfareTotals = [],
+        topContributors = [],
+        topContribValues = [],
+      } = chartData;
+
+      new Chart(document.getElementById("contribChart"), {
+        type: "line",
+        data: {
+          labels: monthlyLabels,
+          datasets: [
+            {
+              label: "Contributions (Ksh)",
+              data: monthlyValues,
+              borderColor: "#00bfa5",
+              backgroundColor: "rgba(0,191,165,0.15)",
+              tension: 0.4,
+              fill: true,
+            },
+          ],
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } },
+      });
+
+      new Chart(document.getElementById("loanChart"), {
+        type: "doughnut",
+        data: {
+          labels: loanLabels,
+          datasets: [
+            {
+              data: loanCounts,
+              backgroundColor: ["#00bfa5", "#ffb300", "#e53935"],
+            },
+          ],
+        },
+        options: { responsive: true },
+      });
+
+      new Chart(document.getElementById("welfareChart"), {
+        type: "bar",
+        data: {
+          labels: welfareLabels,
+          datasets: [
+            {
+              label: "Welfare (Ksh)",
+              data: welfareTotals,
+              backgroundColor: ["#00bfa5", "#e53935", "#ffb300"],
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          indexAxis: "y",
+          plugins: { legend: { display: false } },
+        },
+      });
+
+      new Chart(document.getElementById("topContribChart"), {
+        type: "bar",
+        data: {
+          labels: topContributors,
+          datasets: [
+            {
+              label: "Total (Ksh)",
+              data: topContribValues,
+              backgroundColor: "#003b46",
+            },
+          ],
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } },
+      });
+    </script>
+
+<script>
+  const bell = document.getElementById("notif-btn");
+  const panel = document.getElementById("notif-panel");
+  const notifList = document.getElementById("notif-list");
+  const badge = document.getElementById("notif-count");
+  const loadMoreBtn = document.getElementById("load-more");
+  const profileToggle = document.querySelector(".profile-toggle");
+  const profileMenu = document.querySelector(".profile-menu");
+  let nextPage = 1;
+
+  const openNotifPanel = () => {
+    if (!panel) return;
+    panel.classList.remove("hidden");
+    panel.classList.remove("is-closing");
+    requestAnimationFrame(() => panel.classList.add("active"));
+  };
+
+  const closeNotifPanel = () => {
+    if (!panel) return;
+    if (!panel.classList.contains("active")) {
+      panel.classList.add("hidden");
+      panel.classList.remove("is-closing");
+      return;
+    }
+
+    function finalize() {
+      panel.removeEventListener("transitionend", handleTransitionEnd);
+      if (!panel.classList.contains("active")) {
+        panel.classList.add("hidden");
+        panel.classList.remove("is-closing");
+      }
+    }
+
+    function handleTransitionEnd(event) {
+      if (event.target !== panel) return;
+      finalize();
+    }
+
+    panel.classList.add("is-closing");
+    panel.addEventListener("transitionend", handleTransitionEnd);
+    panel.classList.remove("active");
+    window.setTimeout(finalize, 280);
+  };
+
+  // --- Update badge ---
+  const updateBadge = (count) => {
+    if (!badge) return;
+    if (count > 0) {
+      badge.textContent = count;
+      badge.style.display = "inline-block";
+      bell.classList.add("has-unread");
+    } else {
+      badge.textContent = "";
+      badge.style.display = "none";
+      bell.classList.remove("has-unread");
+    }
+  };
+
+  // --- Load notifications ---
+  function loadNotifications(reset = false) {
+    const url = new URL("{% url 'notification_fetch' %}", window.location.origin);
+    url.searchParams.set("page", nextPage || 1);
+
+    fetch(url)
+      .then((res) => res.json())
+      .then((data) => {
+        if (reset) notifList.innerHTML = "";
+
+        if (!data.notifications || data.notifications.length === 0) {
+          notifList.innerHTML = `<div class="notif-empty">No notifications yet</div>`;
+          loadMoreBtn.hidden = true;
+        } else {
+          data.notifications.forEach((n) => {
+            const item = document.createElement("a");
+            item.href = n.link || "#";
+            item.target = "_blank";
+            item.className = "notif-item" + (n.is_read ? " notif-item--read" : "");
+            item.dataset.id = n.id;
+            item.innerHTML = `
+              <p class="notif-title">${n.title}</p>
+              <p class="notif-msg">${n.message}</p>
+              <small>${n.created_at}</small>
+            `;
+            notifList.appendChild(item);
+          });
+
+          if (data.has_next) {
+            nextPage = data.next_page;
+            loadMoreBtn.hidden = false;
+          } else {
+            nextPage = null;
+            loadMoreBtn.hidden = true;
+          }
+        }
+
+        updateBadge(data.unread_count || 0);
+      })
+      .catch(() => {
+        notifList.innerHTML = `<div class="notif-empty">Unable to load notifications</div>`;
+      });
+  }
+
+  // --- Click: toggle notification panel ---
+  bell.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const isOpen = panel.classList.contains("active");
+    const isClosing = panel.classList.contains("is-closing");
+    const shouldOpen = !isOpen || isClosing;
+
+    if (profileMenu && !profileMenu.classList.contains("hidden")) {
+      profileMenu.classList.add("hidden");
+    }
+
+    if (shouldOpen) {
+      openNotifPanel();
+      nextPage = 1;
+      loadNotifications(true);
+    } else {
+      closeNotifPanel();
+    }
+  });
+
+  // --- Load more ---
+  loadMoreBtn.addEventListener("click", () => {
+    if (nextPage) loadNotifications(false);
+  });
+
+  // --- Click: mark read & open link ---
+  notifList.addEventListener("click", (event) => {
+    const item = event.target.closest(".notif-item");
+    if (!item) return;
+
+    const id = item.dataset.id;
+    const link = item.getAttribute("href");
+
+    item.classList.add("notif-item--read");
+    const current = parseInt((badge && badge.textContent) || "0", 10) || 0;
+    updateBadge(Math.max(current - 1, 0));
+
+    if (id) fetch(`/notifications/read/${id}/`);
+    if (link && link !== "#") window.open(link, "_blank");
+
+    closeNotifPanel();
+  });
+
+  // --- WebSocket live updates ---
+  const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+  const socket = new WebSocket(`${wsProtocol}://${window.location.host}/ws/notifications/`);
+  socket.onmessage = () => {
+    const current = parseInt((badge && badge.textContent) || "0", 10) || 0;
+    updateBadge(current + 1);
+    nextPage = 1;
+    loadNotifications(true);
+  };
+
+  // --- Profile dropdown ---
+  if (profileToggle && profileMenu) {
+    profileToggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      profileMenu.classList.toggle("hidden");
+
+      if (!panel.classList.contains("hidden")) {
+        closeNotifPanel();
+      }
+    });
+  }
+
+  // --- Close everything when clicking outside ---
+  document.addEventListener("click", (event) => {
+    if (
+      !bell.contains(event.target) &&
+      !panel.contains(event.target) &&
+      (!profileToggle || !profileToggle.contains(event.target)) &&
+      (!profileMenu || !profileMenu.contains(event.target))
+    ) {
+      closeNotifPanel();
+      if (profileMenu) profileMenu.classList.add("hidden");
+    }
+  });
+
+  // --- Auto load and auto refresh ---
+  loadNotifications(true);
+  setInterval(() => loadNotifications(true), 60000);
+</script>
+
 
     <!-- ===== FOOTER ===== -->
     <footer class="footer">
-      <p>
-        &copy; {{ this_year }} Tambul Hustle Youth Group. All rights reserved.
-      </p>
+      <p>&copy; {{ this_year }} Tambul Hustle Youth Group. All rights reserved.</p>
     </footer>
   </body>
 </html>

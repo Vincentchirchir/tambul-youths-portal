@@ -1,0 +1,54 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ announcement.title }} | Tambul Hustle Youth Group</title>
+    <link rel="icon" type="image/png" href="{% static 'images/favicon.svg' %}" />
+    <link rel="stylesheet" href="{% static 'core/announcement_detail.css' %}" />
+  </head>
+  <body>
+    <!-- ===== HEADER ===== -->
+    <header class="header">
+      <div class="header-left">
+        <img
+          src="{% static 'images/logo.png' %}"
+          alt="Tambul Logo"
+          class="logo"
+        />
+        <div class="brand-text">
+          <h2>Tambul Hustle Youth Group</h2>
+          <span>Official Announcement</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <a href="{% url dashboard_url %}" class="back-btn"
+          >← Back to Dashboard</a
+        >
+      </div>
+    </header>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main class="announcement-section">
+      <article class="announcement-card">
+        <h1 class="announcement-title">{{ announcement.title }}</h1>
+        <p class="announcement-message">
+          {{ announcement.message|linebreaks }}
+        </p>
+
+        <div class="announcement-meta">
+          <span>📅 Posted on {{ announcement.published_at|date:"F j, Y, g:i a"}}</span>
+        </div>
+      </article>
+    </main>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="footer">
+      <p>
+        &copy; {{ now|date:"Y" }} Tambul Hustle Youth Group. All rights
+        reserved.
+      </p>
+    </footer>
+  </body>
+</html>

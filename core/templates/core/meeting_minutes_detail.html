@@ -1,0 +1,71 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ note.title }} | Meeting Minutes</title>
+    <link rel="icon" type="image/png" href="{% static 'images/favicon.svg' %}" />
+    <link rel="stylesheet" href="{% static 'core/meeting_minute_detail.css' %}" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <img src="{% static 'images/logo.png' %}" alt="Tambul Logo" />
+        <div>
+          <h2>Tambul Hustle Youth Group</h2>
+          <span>Meeting Minutes</span>
+        </div>
+      </div>
+
+      <a class="btn-back" href="{% url dashboard_url %}">← Back to Dashboard</a>
+    </header>
+
+    <main class="container">
+      <article class="minutes-card">
+        <h1 class="title">{{ note.title }}</h1>
+
+        {% if note.description %}
+          <p class="minutes-description">{{ note.description }}</p>
+        {% endif %}
+
+        {% if has_file %}
+          <iframe
+            class="minutes-viewer"
+            src="{{ note.file.url }}"
+            title="{{ note.title }}"
+          ></iframe>
+          <a
+            class="download-btn"
+            href="{{ note.file.url }}"
+            target="_blank"
+            rel="noopener"
+          >
+            Download Attachment
+          </a>
+        {% elif note.content %}
+          <div class="minutes-content">
+            {{ note.content|linebreaks }}
+          </div>
+        {% else %}
+          <div class="minutes-empty">
+            No attachment or written summary was provided for these minutes.
+          </div>
+        {% endif %}
+
+        <p class="posted-date">
+          Posted on {{ note.created_at|date:"F j, Y, g:i a" }}
+          {% if note.posted_by %}
+            • By {{ note.posted_by.get_full_name|default:note.posted_by.username }}
+          {% endif %}
+        </p>
+      </article>
+    </main>
+
+    <a class="floating-back-btn" href="{% url dashboard_url %}">← Back</a>
+
+    <footer class="footer">
+      <p>&copy; {% now "Y" %} Tambul Hustle Youth Group. All rights reserved.</p>
+    </footer>
+  </body>
+</html>

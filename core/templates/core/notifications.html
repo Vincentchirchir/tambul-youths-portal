@@ -1,0 +1,16 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<section class="notifications">
+  <h2>Notifications</h2>
+  {% for n in notifications %}
+    <div class="notif {% if not n.is_read %}unread{% endif %}">
+      <h4>{{ n.title }}</h4>
+      <p>{{ n.message }}</p>
+      <a href="{% url 'mark_notification_read' n.pk %}">View</a>
+      <small>{{ n.created_at|date:"M d, Y H:i" }}</small>
+    </div>
+  {% empty %}
+    <p>No notifications yet.</p>
+  {% endfor %}
+</section>
+{% endblock %}

@@ -1,15 +1,16 @@
-from django.views.generic import TemplateView, CreateView
-from django.views.generic.edit import FormView
+from django.views.generic import TemplateView, CreateView, ListView, View, DetailView
+from django.views.generic.edit import FormView, UpdateView
 from django.urls import reverse_lazy, reverse
 from datetime import date
 from django.db.models import Sum, F, ExpressionWrapper, DecimalField, Case, When, Value, Count
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from.models import Contribution, Loan, Welfare, Announcement, MeetingNote
+from.models import Contribution, Loan, Welfare, Announcement, MeetingNote, Notification
 from .forms import ContributionForm, LoanApplicationForm, AnnouncementForm, MeetingNoteForm
 from django.shortcuts import render, redirect, get_object_or_404
 import requests
 from django.conf import settings
 from accounts.models import User
+from accounts.forms import ProfileForm
 from django.db.models.functions import TruncMonth
 import csv
 from django .contrib import messages
@@ -20,8 +21,8 @@ from django.contrib.staticfiles import finders
 from reportlab.lib.utils import ImageReader
 import json
 from django.utils import timezone
-from django.views import View
-
+from django.http import JsonResponse
+from django.core.paginator import Paginator
 
 class Index(TemplateView):
     template_name="core/index.html"
@@ -32,6 +33,8 @@ class MemberDashboardView(LoginRequiredMixin, TemplateView):
         ctx=super().get_context_data(**kwargs)
         user=self.request.user
         year=date.today().year
+
+        ctx["unread_notifications"] = user.notifications.filter(is_read=False).count()
 
         ctx["contrib_ytd"]=(
             Contribution.objects.filter(member=user, month__year=year)
@@ -91,25 +94,29 @@ class MemberDashboardView(LoginRequiredMixin, TemplateView):
 class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     template_name = "core/committee_dashboard.html"
 
-    # --- Access Control ---
+    #  Access Control 
     def test_func(self):
         return self.request.user.role in [
             "chairperson",
+            "vice-chairperson",
             "treasurer",
             "secretary",
+            "vice-secretary",
             "welfare",
             "coordinator",
             "admin",
             "committee",
         ]
 
-    # --- Context Data ---
+    # Context Data
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         year = date.today().year
         user = self.request.user
         ctx["user_display_name"] = user.first_name or user.username
-        # ========== 1️ OVERVIEW METRICS ==========
+        ctx["unread_notifications"] = user.notifications.filter(is_read=False).count()
+
+        #  1️ OVERVIEW PART
         ctx["total_members"] = User.objects.exclude(role="admin").count()
         ctx["total_contributions"] = (
             Contribution.objects.filter(month__year=year)
@@ -141,7 +148,7 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
             if loan.current_balance()
         )
 
-                # --- Check if committee member can apply loan ---
+                #Check if committee member can apply loan
         ctx["can_apply_loan"] = not Loan.objects.filter(
             member=user,
             repayment_status__in=["not_paid", "partially_paid"],
@@ -165,7 +172,7 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         )
         ctx["today"] = date.today()
 
-        # ========== 2️ DATA TABLES ==========
+        #2️ DATA TABLES
         ctx["members"] = (
             User.objects.all()
             .exclude(role="admin")
@@ -175,15 +182,15 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         ctx["contributions"] = Contribution.objects.all().order_by("-month", "-created_at")
         ctx["welfare_records"] = Welfare.objects.all().order_by("-date_given")
 
-        # ========== 3️ ANNOUNCEMENTS ==========
+        # 3️ ANNOUNCEMENTS 
         ctx["announcements"] = (
             Announcement.objects.all().order_by("-published_at")[:10]
             if Announcement.objects.exists()
             else []
         )
 
-        # ========== 4️ ANALYTICS DATA (for charts & summaries) ==========
-        # Monthly contribution trend
+        #4️ ANALYTICS DATA
+        # Monthly contribution
         monthly = (
             Contribution.objects.filter(month__year=year)
             .annotate(month_label=TruncMonth("month"))
@@ -206,11 +213,11 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         #Meeting Reports
         ctx["meeting_notes"] = MeetingNote.objects.all().order_by("-created_at")
 
-        # ========== 5️ YEAR & DATE INFO ==========
+        # 5️ YEAR & DATE INFO
         ctx["this_year"] = year
         ctx["today"] = date.today()
 
-        # Top 5 contributors (for bar chart)
+        # Top 5 MEMBERS FOR MONTHLY CONTRIBUTION
         top_contrib = (
             Contribution.objects.values("member__username")
             .annotate(total=Sum("amount"))
@@ -268,7 +275,7 @@ class ExportContributionsPDF(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         p = canvas.Canvas(response, pagesize=A4)
         width, height = A4
 
-        # --- HEADER BRANDING ---
+        # HEADER BRANDING
         logo_path = finders.find("images/logo.png")
         if logo_path:
             p.drawImage(ImageReader(logo_path), 50, height - 80, width=50, height=50)
@@ -279,11 +286,11 @@ class ExportContributionsPDF(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         p.drawString(120, height - 70, "Contributions Report")
         p.line(40, height - 85, width - 40, height - 85)
 
-        # --- METADATA ---
+        # METADATA
         p.setFont("Helvetica-Oblique", 8)
         p.drawString(50, height - 100, f"Generated on: {date.today().strftime('%B %d, %Y')}")
 
-        # --- TABLE HEADERS ---
+        # TABLE HEADERS
         y = height - 130
         p.setFont("Helvetica-Bold", 10)
         p.drawString(50, y, "Member")
@@ -292,7 +299,7 @@ class ExportContributionsPDF(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         p.drawString(400, y, "Date Added")
         y -= 20
 
-        # --- DATA ROWS ---
+        # DATA ROWS
         p.setFont("Helvetica", 9)
         for c in Contribution.objects.all().order_by("-month"):
             p.drawString(50, y, c.member.username)
@@ -304,7 +311,7 @@ class ExportContributionsPDF(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
                 p.showPage()
                 y = height - 130
 
-        # --- FOOTER ---
+        #FOOTER
         p.setFont("Helvetica-Oblique", 8)
         p.drawString(200, 30, "© Tambul Hustle Youth Group")
 
@@ -346,7 +353,7 @@ class ExportWelfarePDF(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         p = canvas.Canvas(response, pagesize=A4)
         width, height = A4
 
-        # --- HEADER BRANDING ---
+        #HEADER BRANDING
         logo_path = finders.find("images/logo.png")
         if logo_path:
             p.drawImage(ImageReader(logo_path), 50, height - 80, width=50, height=50)
@@ -357,11 +364,11 @@ class ExportWelfarePDF(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         p.drawString(120, height - 70, "Welfare Report")
         p.line(40, height - 85, width - 40, height - 85)
 
-        # --- METADATA ---
+        #METADATA
         p.setFont("Helvetica-Oblique", 8)
         p.drawString(50, height - 100, f"Generated on: {date.today().strftime('%B %d, %Y')}")
 
-        # --- TABLE HEADERS ---
+        # TABLE HEADERS
         y = height - 130
         p.setFont("Helvetica-Bold", 10)
         p.drawString(50, y, "Member")
@@ -371,13 +378,12 @@ class ExportWelfarePDF(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         p.drawString(500, y, "Date Given")
         y -= 20
 
-        # --- DATA ROWS ---
+        # DATA ROWS
         p.setFont("Helvetica", 9)
         for w in Welfare.objects.all().order_by("-date_given"):
             p.drawString(50, y, w.member.username)
             p.drawString(180, y, f"{float(w.amount):,.2f}")
             p.drawString(280, y, w.status.capitalize())
-            # Limit description to fit within page
             desc = (w.description[:30] + "...") if len(w.description) > 30 else w.description
             p.drawString(360, y, desc)
             p.drawString(500, y, w.date_given.strftime("%Y-%m-%d"))
@@ -386,7 +392,7 @@ class ExportWelfarePDF(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                 p.showPage()
                 y = height - 130
 
-        # --- FOOTER ---
+        #FOOTER
         p.setFont("Helvetica-Oblique", 8)
         p.drawString(200, 30, "© Tambul Hustle Youth Group")
 
@@ -428,7 +434,7 @@ class ExportLoansPDF(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         p = canvas.Canvas(response, pagesize=A4)
         width, height = A4
 
-        # --- HEADER BRANDING ---
+        #HEADER BRANDING
         logo_path = finders.find("images/logo.png")
         if logo_path:
             p.drawImage(ImageReader(logo_path), 50, height - 80, width=50, height=50)
@@ -441,7 +447,7 @@ class ExportLoansPDF(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         p.setFont("Helvetica-Oblique", 8)
         p.drawString(50, height - 100, f"Generated on: {date.today().strftime('%B %d, %Y')}")
 
-        # --- TABLE HEADERS ---
+        # TABLE HEADERS
         y = height - 130
         p.setFont("Helvetica-Bold", 10)
         p.drawString(50, y, "Member")
@@ -451,7 +457,7 @@ class ExportLoansPDF(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         p.drawString(440, y, "Due Date")
         y -= 20
 
-        # --- DATA ROWS ---
+        #DATA ROWS
         p.setFont("Helvetica", 9)
         for loan in Loan.objects.all().order_by("-created_at"):
             p.drawString(50, y, loan.member.username)
@@ -466,7 +472,7 @@ class ExportLoansPDF(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                 p.showPage()
                 y = height - 130
 
-        # --- FOOTER ---
+        #FOOTER
         p.setFont("Helvetica-Oblique", 8)
         p.drawString(200, 30, "© Tambul Hustle Youth Group")
 
@@ -517,7 +523,7 @@ class ContributionStatusUpdateView(LoginRequiredMixin, View):
 
 class WelfareStatusUpdateView(LoginRequiredMixin, View):
     def get(self, request, pk, status):
-        # Restrict only to Welfare Officer
+        # Restrict only to Welfare
         if request.user.role != "welfare":
             return HttpResponseForbidden("You are not authorized to update welfare records.")
 
@@ -645,13 +651,17 @@ class PostMeetingNoteView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     template_name = "core/post_meeting.html"
     success_url = reverse_lazy("committee-dashboard")
 
+    # only secretary can post
     def test_func(self):
         return self.request.user.role == "secretary"
 
     def form_valid(self, form):
         form.instance.posted_by = self.request.user
-        messages.success(self.request, "Meeting minutes posted successfully.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        minute = self.object
+
+        messages.success(self.request, "Meeting minutes posted successfully and notifications sent.")
+        return response
 
 class PostAnnouncementView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     model = Announcement
@@ -666,4 +676,108 @@ class PostAnnouncementView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         form.instance.published_at = timezone.now()
         form.instance.created_by = self.request.user
         messages.success(self.request, "Announcement posted successfully.")
+        
         return super().form_valid(form)
+    
+class ProfileView(LoginRequiredMixin, TemplateView):
+    template_name = "core/profile.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["user"] = self.request.user
+        return ctx
+    
+class EditProfileView(LoginRequiredMixin, UpdateView):
+    model = User
+    form_class=ProfileForm
+    template_name = "core/edit_profile.html"
+    success_url = reverse_lazy("profile")
+
+    def get_object(self):
+        return self.request.user
+
+class NotificationListView(LoginRequiredMixin, ListView):
+    model = Notification
+    template_name = "core/notifications.html"
+    context_object_name = "notifications"
+
+    def get_queryset(self):
+        return self.request.user.notifications.all()
+
+class MarkNotificationReadView(LoginRequiredMixin, View):
+    def get(self, request, pk):
+        notif = get_object_or_404(Notification, pk=pk, recipient=request.user)
+        notif.is_read = True
+        notif.save()
+        return redirect(notif.link or "notifications")
+
+class NotificationFetchView(LoginRequiredMixin, View):
+    PAGE_SIZE = 10
+
+    def get(self, request):
+        page_number = request.GET.get("page", 1)
+        user = request.user
+
+        notifications_qs = user.notifications.order_by("-created_at")
+
+        paginator = Paginator(notifications_qs, self.PAGE_SIZE)
+        page_obj = paginator.get_page(page_number)
+        unread_count = notifications_qs.filter(is_read=False).count()
+
+        data = [
+            {
+                "id": n.id,
+                "title": n.title or "Notification",
+                "message": n.message or "",
+                "link": n.link or "#",
+                "is_read": n.is_read,
+                "created_at": n.created_at.strftime("%b %d, %I:%M %p"),
+            }
+            for n in page_obj
+        ]
+        return JsonResponse({
+            "notifications": data,
+            "has_next": page_obj.has_next(),
+            "next_page": page_obj.next_page_number() if page_obj.has_next() else None,
+            "unread_count": unread_count,
+        })
+
+class AnnouncementDetailView(DetailView):
+    model = Announcement
+    template_name = "core/announcement_detail.html"
+    context_object_name = "announcement"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        user = self.request.user
+        if user.is_authenticated:
+            if user.role == "member":
+                ctx["dashboard_url"] = "member-dashboard"
+            else:
+                ctx["dashboard_url"] = "committee-dashboard"
+        else:
+            ctx["dashboard_url"] = "index"
+        return ctx
+
+class MeetingMinutesDetailView(LoginRequiredMixin, View):
+    def get(self, request, pk):
+        note = get_object_or_404(MeetingNote, pk=pk)
+
+        dashboard_url = (
+            "member-dashboard" if request.user.role == "member" else "committee-dashboard"
+        )
+        has_file = (
+            note.file
+            and hasattr(note.file, "url")
+            and note.file.name not in [None, "", "None"]
+        )
+
+        return render(
+            request,
+            "core/meeting_minutes_detail.html",
+            {
+                "note": note,
+                "has_file": has_file,
+                "dashboard_url": dashboard_url,
+            },
+        )

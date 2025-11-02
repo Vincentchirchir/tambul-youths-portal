@@ -5,12 +5,15 @@ class User(AbstractUser):
     ROLE_CHOICES =[
         ('admin', 'Admin'),
         ('chairperson', 'Chairperson'),
+        ('vice-chairperson', 'Vice-Chairperson'),
         ('committee', 'Committee'),
         ('treasurer', 'Treasurer'),
         ('secretary', 'Secretary'),
+        ('vice-secretary', 'Vice-Secretary'),
         ('coordinator', 'Coordinator'),
         ('welfare', 'Welfare'),
         ('member', 'Member'),
+        
 
     ]
 

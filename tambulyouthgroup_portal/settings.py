@@ -23,7 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-=pedvou_cmfo*1admr%42iq7b-o9&2%$xi=7v2gw(t7pit&j9u'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = [
     "tambulyouths.onrender.com",
@@ -38,6 +38,8 @@ INSTALLED_APPS = [
     #My Apps
     'core',
     'accounts',
+    'channels',
+    'daphne',
 
     'django.contrib.admin',
     'django.contrib.auth',
@@ -46,6 +48,17 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 ]
+
+ASGI_APPLICATION = "tambulyouthgroup_portal.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],  # Later Use your Redis host if when deploying
+        },
+    },
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -149,3 +162,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL='accounts.User'
 LOGIN_URL='login'
 LOGOUT_REDIRECT_URL='/'
+
+# --- Session Settings (Auto Logout) ---
+SESSION_COOKIE_AGE = 300        # 5 minutes (in seconds)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_SAVE_EVERY_REQUEST = True

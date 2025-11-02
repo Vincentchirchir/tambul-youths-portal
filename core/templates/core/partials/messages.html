@@ -1,0 +1,37 @@
+{% if messages %}
+  <div class="flash-messages" role="alert" aria-live="polite">
+    {% for message in messages %}
+      <div class="flash flash--{{ message.level_tag }}" data-auto-dismiss="4000">
+        <span class="flash__icon" aria-hidden="true">
+          {% if message.level_tag == "success" %}
+            &#10003;
+          {% elif message.level_tag == "warning" %}
+            &#9888;
+          {% elif message.level_tag == "error" %}
+            &#9940;
+          {% else %}
+            &#8505;
+          {% endif %}
+        </span>
+        <span class="flash__text">{{ message }}</span>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const flashes = document.querySelectorAll(".flash[data-auto-dismiss]");
+    flashes.forEach((flash) => {
+      const timeout = parseInt(flash.dataset.autoDismiss, 10) || 3000;
+      setTimeout(() => {
+        flash.classList.add("flash--closing");
+        flash.addEventListener(
+          "animationend",
+          () => flash.remove(),
+          { once: true }
+        );
+      }, timeout);
+    });
+  });
+</script>

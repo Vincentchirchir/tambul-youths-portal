@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Contribution, Loan, Welfare, MeetingNote, Announcement
+from .models import Contribution, Loan, Welfare, MeetingNote, Announcement, Notification
 
 @admin.register(Contribution)
 class ContributionAdmin(admin.ModelAdmin):
@@ -31,3 +31,11 @@ class AnnouncementAdmin(admin.ModelAdmin):
     list_display = ("title", "published_at")
     search_fields = ("title", "message")
     ordering = ("-published_at",)
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ("title", "recipient", "is_read", "created_at")
+    list_filter = ("is_read", "created_at")
+    search_fields = ("title", "message", "recipient__email", "recipient__first_name", "recipient__last_name")
+    ordering = ("-created_at",)
