@@ -1,29 +1,34 @@
-# --- Core Framework ---
+# Core Framework 
 Django==5.2.7
 
-# --- Database (PostgreSQL) ---
+#  Database (PostgreSQL) 
 psycopg[binary]
 dj-database-url==2.2.0
 
-# --- Environment Variables ---
+# Environment Variables
 python-decouple==3.8
 django-environ==0.11.2
 
-# --- Static Files & Deployment ---
+# Static Files & Deployment
 whitenoise==6.0.0
 gunicorn==23.0.0
 
-# --- PDF & Reports ---
+#  PDF & Reports
 reportlab==4.2.2
 
-# --- HTTP Requests / API Calls ---
+# HTTP Requests / API Calls
 requests==2.32.3
 
-# --- Image / Media Support ---
+# Image / Media Support
 Pillow==10.4.0
 
-# --- Timezone and Date Helpers ---
+# Timezone and Date Helpers
 python-dateutil==2.9.0.post0
 
-# --- Optional Utilities ---
+
 typing-extensions==4.12.2
+
+channels==4.1.0
+channels-redis==4.2.0
+
+daphne==4.1.2
