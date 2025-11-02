@@ -20,16 +20,29 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-=pedvou_cmfo*1admr%42iq7b-o9&2%$xi=7v2gw(t7pit&j9u'
+import os
+
+SECRET_KEY = os.environ.get(
+    "DJANGO_SECRET_KEY",
+    "django-insecure-=pedvou_cmfo*1admr%42iq7b-o9&2%$xi=7v2gw(t7pit&j9u" 
+)
+
+
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = [
     "tambulyouths.onrender.com",
     "localhost",
     "127.0.0.1"
 ]
+
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://tambulyouths.onrender.com",
+]
+
 
 
 # Application definition
@@ -55,7 +68,7 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)],  # Later Use your Redis host if when deploying
+            "hosts": [os.environ.get("redis-cli --tls -u redis://default:AX38AAIncDI2N2QzMWViMjk0YWM0ZjNjYWIyZWMxMTU0NDIzNmQ5Y3AyMzIyNTI@immortal-oriole-32252.upstash.io:6379")],  # Later Use your Redis host if when deploying
         },
     },
 }
@@ -151,6 +164,31 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'core', 'static'),
 ]
 
+# --- Secure Cookies & HTTPS ---
+CSRF_COOKIE_SECURE = True          # Ensures CSRF cookie only sent over HTTPS
+SESSION_COOKIE_SECURE = True       # Same for session cookie
+SECURE_SSL_REDIRECT = True         # Redirect all HTTP -> HTTPS
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_REFERRER_POLICY = "same-origin"
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
+
+
+# --- Clickjacking Protection ---
+X_FRAME_OPTIONS = "DENY"
+
+# --- Content Type Sniffing Protection ---
+SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# --- Browser XSS Protection ---
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
+
+
+# --- HSTS: Force HTTPS ---
+SECURE_HSTS_SECONDS = 31536000     # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
@@ -167,3 +205,15 @@ LOGOUT_REDIRECT_URL='/'
 SESSION_COOKIE_AGE = 300        # 5 minutes (in seconds)
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_SAVE_EVERY_REQUEST = True
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "WARNING",
+    },
+}
