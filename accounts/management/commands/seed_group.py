@@ -6,9 +6,11 @@ class Command(BaseCommand):
 
     GROUPS = [
         "Chairperson",
+        "Vice-Chairperson",
         "Committee",
         "Treasurer",
         "Secretary",
+        "Vice-Secretary",
         "Coordinator",
         "Welfare",
         "Member",
