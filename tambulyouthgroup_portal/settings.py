@@ -68,7 +68,7 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [os.environ.get("redis-cli --tls -u redis://default:AX38AAIncDI2N2QzMWViMjk0YWM0ZjNjYWIyZWMxMTU0NDIzNmQ5Y3AyMzIyNTI@immortal-oriole-32252.upstash.io:6379")],  # Later Use your Redis host if when deploying
+            "hosts": [os.environ.get("redis-cli --tls -u redis://default:AX38AAIncDI2N2QzMWViMjk0YWM0ZjNjYWIyZWMxMTU0NDIzNmQ5Y3AyMzIyNTI@immortal-oriole-32252.upstash.io:6379")],  # Change when changing your web host
         },
     },
 }
