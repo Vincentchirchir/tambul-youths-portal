@@ -97,3 +97,6 @@ __pycache__/
 tambulhustleygroup_env/
 *.pyc
 __pycache__/
+
+# Ignore collected static files
+/staticfiles/
