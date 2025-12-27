@@ -39,6 +39,7 @@
       </div>
 
       <div class="btn-group">
+        <a href="{% url 'password_change' %}" class="btn btn-outline-primary">Change Password</a>
         <a href="{% url 'edit-profile' %}" class="btn btn-primary">Edit Profile</a>
         {% if request.user.role == 'member' %}
           <a href="{% url 'member-dashboard' %}" class="btn btn-secondary">Back</a>
