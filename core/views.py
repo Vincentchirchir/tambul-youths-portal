@@ -119,7 +119,10 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         #  1️ OVERVIEW PART
         ctx["total_members"] = User.objects.exclude(role="admin").count()
         ctx["total_contributions"] = (
-            Contribution.objects.filter(month__year=year)
+            Contribution.objects.filter(
+                month__year=year,
+                status__in=["fully_paid", "partially_paid"],
+            )
             .aggregate(total=Sum("amount"))["total"]
             or 0
         )
