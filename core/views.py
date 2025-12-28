@@ -129,7 +129,11 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         ctx["total_loans"] = Loan.objects.filter(status="approved").count()
         ctx["pending_loans"] = Loan.objects.filter(status="pending").count()
         ctx["total_welfare"] = (
-            Welfare.objects.aggregate(total=Sum("amount"))["total"] or 0
+            Welfare.objects.filter(
+                status__in=["fully paid", "partially paid"]
+            )
+            .aggregate(total=Sum("amount"))["total"]
+            or 0
         )
 
         # Personal summary metrics for the logged-in committee member
