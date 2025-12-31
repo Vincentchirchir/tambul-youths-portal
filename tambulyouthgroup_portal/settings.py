@@ -64,11 +64,20 @@ INSTALLED_APPS = [
 
 ASGI_APPLICATION = "tambulyouthgroup_portal.asgi.application"
 
+#CHANNEL_LAYERS = {
+ #   "default": {
+    #    "BACKEND": "channels_redis.core.RedisChannelLayer",
+  #      "CONFIG": {
+      #      "hosts": [os.environ.get("REDIS_URL")],  # Change when changing your web host
+      #  },
+   # },
+#}
+
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [os.environ.get("REDIS_URL")],  # Change when changing your web host
+            "hosts": [os.environ.get("REDIS_URL")],
         },
     },
 }
