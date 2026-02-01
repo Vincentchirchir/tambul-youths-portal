@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.urls import path
-from .views import Index, MemberDashboardView, CommitteeDashboardView, ExportLoansCSV, ExportLoansPDF, ExportContributionsCSV, ExportContributionsPDF, ExportWelfareCSV, ExportWelfarePDF, LoanRepaymentUpdateView, ContributionStatusUpdateView, WelfareStatusUpdateView, LoanApplicationView, LoanApprovalUpdateView, AnnouncementCreateView, PostMeetingNoteView, PostAnnouncementView, ProfileView, EditProfileView, NotificationListView, MarkNotificationReadView, NotificationFetchView, AnnouncementDetailView, MeetingMinutesDetailView
+from .views import Index, MemberDashboardView, CommitteeDashboardView, ExportLoansCSV, ExportLoansPDF, ExportContributionsCSV, ExportContributionsPDF, ExportWelfareCSV, ExportWelfarePDF, LoanRepaymentUpdateView, LoanTotalPaidUpdateView, ContributionStatusUpdateView, ContributionAmountUpdateView, WelfareAmountUpdateView, WelfareStatusUpdateView, LoanApplicationView, LoanApprovalUpdateView, AnnouncementCreateView, PostMeetingNoteView, PostAnnouncementView, ProfileView, EditProfileView, NotificationListView, MarkNotificationReadView, NotificationFetchView, AnnouncementDetailView, MeetingMinutesDetailView
 
 
 urlpatterns = [
@@ -15,8 +15,11 @@ urlpatterns = [
     path("export/welfare/pdf/", ExportWelfarePDF.as_view(), name="export-welfare-pdf"),
     path("loan/status/<int:pk>/<str:status>/", LoanApprovalUpdateView.as_view(), name="mark-loan-status"),
     path("loan/update/<int:pk>/<str:status>/", LoanRepaymentUpdateView.as_view(), name="mark-loan-paid"),
+    path("loan/repayment/amount/<int:pk>/", LoanTotalPaidUpdateView.as_view(), name="update-loan-total-paid"),
     path("contribution/update/<int:pk>/<str:status>/", ContributionStatusUpdateView.as_view(), name="mark-contrib-status"), 
+    path("contribution/amount/<int:pk>/", ContributionAmountUpdateView.as_view(), name="update-contrib-amount"),
     path("welfare/update/<int:pk>/<str:status>/", WelfareStatusUpdateView.as_view(), name="mark-welfare-status"),
+    path("welfare/amount/<int:pk>/", WelfareAmountUpdateView.as_view(), name="update-welfare-amount"),
     path("apply-loan/", LoanApplicationView.as_view(), name="apply-loan"),
     path("announcement/create/", AnnouncementCreateView.as_view(), name="create-announcement"),
     path("post-minutes/", PostMeetingNoteView.as_view(), name="post-meeting-note"),

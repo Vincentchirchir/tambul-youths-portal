@@ -25,6 +25,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='welfare',
             name='status',
-            field=models.CharField(choices=[('partially paid', 'Partially Paid'), ('fully paid', 'Fully Paid'), ('not paid', 'Not Paid')], default='not paid', max_length=20),
+            field=models.CharField(choices=[('partially_paid', 'Partially Paid'), ('fully_paid', 'Fully Paid'), ('not_paid', 'Not Paid')], default='not_paid', max_length=20),
         ),
     ]

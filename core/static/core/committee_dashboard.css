@@ -498,6 +498,152 @@ main {
   font-weight: 600;
 }
 
+.actions-col {
+  min-width: 220px;
+  vertical-align: top;
+}
+
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.action-buttons .btn-small {
+  flex: 1 1 110px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.action-select {
+  display: none;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  font-size: 0.9rem;
+}
+
+.loan-select {
+  display: none;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  font-size: 0.9rem;
+}
+
+.loan-repaid-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.loan-input-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+}
+
+.loan-input-prefix {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.loan-input {
+  width: 110px;
+  padding: 6px 6px;
+  border: none;
+  background: transparent;
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+.loan-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+.loan-repaid-form .btn-small {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+@media (max-width: 900px) {
+  .styled-table {
+    min-width: 720px;
+  }
+
+  .actions-col {
+    min-width: 190px;
+  }
+
+  .action-buttons {
+    display: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .action-buttons .btn-small {
+    flex: none;
+    width: 100%;
+    font-size: 0.78rem;
+    padding: 6px 8px;
+  }
+
+  .action-select {
+    display: block;
+  }
+
+  .loan-actions {
+    display: none !important;
+  }
+
+  .loan-actions--approval {
+    display: none !important;
+  }
+
+  .loan-select {
+    display: block;
+  }
+
+  .loan-repaid-form {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .loan-input-group {
+    width: auto;
+    padding: 2px 6px;
+  }
+
+  .loan-input {
+    width: 80px;
+    font-size: 0.85rem;
+  }
+
+  .loan-repaid-form .btn-small {
+    padding: 5px 8px;
+    font-size: 0.78rem;
+  }
+}
+
 .empty {
   text-align: center;
   padding: 15px;

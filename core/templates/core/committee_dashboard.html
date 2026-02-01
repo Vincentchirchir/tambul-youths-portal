@@ -254,6 +254,7 @@
                   <th>Due Date</th>
                   <th>Today</th>
                   <th>Amount (Ksh)</th>
+                  <th>Total Paid (Ksh)</th>
                   <th>Interest (10%)</th>
                   <th>Approval Status</th>
                   <th>Repayment Status</th>
@@ -270,6 +271,7 @@
                   <td>{{ loan.due_date|date:"M d, Y" }}</td>
                   <td>{{ today|date:"M d, Y" }}</td>
                   <td>{{ loan.amount|floatformat:0 }}</td>
+                  <td>{{ loan.total_paid_so_far|floatformat:0 }}</td>
                   <td>{{ loan.interest|floatformat:0 }}</td>
 
                   <!-- Approval Status -->
@@ -300,7 +302,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                  <td colspan="11" class="empty">No loan records found</td>
+                  <td colspan="12" class="empty">No loan records found</td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -559,14 +561,16 @@
               <tr>
                 <th>Member</th>
                 <th>Amount (Ksh)</th>
+                <th>Total Paid (Ksh)</th>
+                <th>Balance (Ksh)</th>
                 <th>Approval Status</th>
                 <th>Loan Date</th>
                 <th>Due Date</th>
                 <th>Repayment Status</th>
                 <th>Updated On</th>
                 {% if user.role == "chairperson" %}
-                <th>Approval Actions</th>
-                <th>Repayment Actions</th>
+                <th class="actions-col">Approval Actions</th>
+                <th class="actions-col">Repayment Actions</th>
                 {% endif %}
               </tr>
             </thead>
@@ -577,6 +581,30 @@
                   {{ loan.member.first_name }} {{ loan.member.last_name }}
                 </td>
                 <td>Ksh {{ loan.amount|floatformat:2 }}</td>
+                <td>
+                  {% if user.role == "chairperson" %}
+                  <form method="post" action="{% url 'update-loan-total-paid' loan.id %}" class="loan-repaid-form">
+                    {% csrf_token %}
+                    <div class="loan-input-group">
+                      <span class="loan-input-prefix">Ksh</span>
+                      <input
+                        type="number"
+                        name="total_paid_so_far"
+                        min="0"
+                        step="0.01"
+                        value="{{ loan.total_paid_so_far|floatformat:2 }}"
+                        placeholder="0.00"
+                        class="loan-input"
+                        aria-label="Total paid so far"
+                      />
+                    </div>
+                    <button type="submit" class="btn btn-small">Save</button>
+                  </form>
+                  {% else %}
+                  Ksh {{ loan.total_paid_so_far|floatformat:2 }}
+                  {% endif %}
+                </td>
+                <td>Ksh {{ loan.current_balance|floatformat:2 }}</td>
 
                 <!-- Approval -->
                 <td>
@@ -602,7 +630,7 @@
                 </td>
 
                 {% if user.role == "chairperson" %}
-                <td>
+                <td class="actions-col">
                   <div class="loan-actions loan-actions--approval">
                     <a
                       href="{% url 'mark-loan-status' loan.id 'approved' %}"
@@ -615,8 +643,13 @@
                       >Reject</a
                     >
                   </div>
+                  <select class="loan-select" onchange="if (this.value) window.location = this.value;">
+                    <option value="">Update approval...</option>
+                    <option value="{% url 'mark-loan-status' loan.id 'approved' %}">Approve</option>
+                    <option value="{% url 'mark-loan-status' loan.id 'rejected' %}">Reject</option>
+                  </select>
                 </td>
-                <td>
+                <td class="actions-col">
                   <div class="loan-actions">
                     <a
                       href="{% url 'mark-loan-paid' loan.id 'fully_paid' %}"
@@ -634,13 +667,19 @@
                       >Not Paid</a
                     >
                   </div>
+                  <select class="loan-select" onchange="if (this.value) window.location = this.value;">
+                    <option value="">Update repayment...</option>
+                    <option value="{% url 'mark-loan-paid' loan.id 'fully_paid' %}">Fully Paid</option>
+                    <option value="{% url 'mark-loan-paid' loan.id 'partially_paid' %}">Partial</option>
+                    <option value="{% url 'mark-loan-paid' loan.id 'not_paid' %}">Not Paid</option>
+                  </select>
                 </td>
                 {% endif %}
               </tr>
               {% empty %}
               <tr>
                 <td
-                  colspan="{% if user.role == 'chairperson' %}9{% else %}7{% endif %}"
+                  colspan="{% if user.role == 'chairperson' %}11{% else %}9{% endif %}"
                   class="empty"
                 >
                   No loans yet
@@ -672,7 +711,7 @@
                 <th>Status</th>
                 <th>Updated On</th>
                 {% if user.role == "treasurer" %}
-                <th>Actions</th>
+                <th class="actions-col">Actions</th>
                 {% endif %}
               </tr>
             </thead>
@@ -680,7 +719,25 @@
               {% for c in contributions %}
               <tr>
                 <td>{{ c.member.first_name }} {{ c.member.last_name }}</td>
-                <td>{{ c.amount|floatformat:2 }}</td>
+                <td>
+                  {% if user.role == "treasurer" %}
+                  <form method="post" action="{% url 'update-contrib-amount' c.id %}" class="loan-repaid-form">
+                    {% csrf_token %}
+                    <input
+                      type="number"
+                      name="amount"
+                      min="0"
+                      step="0.01"
+                      value="{{ c.amount|floatformat:2 }}"
+                      class="loan-input"
+                      aria-label="Contribution amount"
+                    />
+                    <button type="submit" class="btn btn-small">Save</button>
+                  </form>
+                  {% else %}
+                  {{ c.amount|floatformat:2 }}
+                  {% endif %}
+                </td>
                 <td>{{ c.month|date:"F Y" }}</td>
                 <td>{{ c.created_at|date:"M d, Y" }}</td>
 
@@ -693,22 +750,30 @@
                 <td>{{ c.updated_at|date:"M d, Y"|default:"—" }}</td>
 
                 {% if user.role == "treasurer" %}
-                <td>
-                  <a
-                    href="{% url 'mark-contrib-status' c.id 'fully_paid' %}"
-                    class="btn btn-small btn-success"
-                    >Fully Paid</a
-                  >
-                  <a
-                    href="{% url 'mark-contrib-status' c.id 'partially_paid' %}"
-                    class="btn btn-small btn-warning"
-                    >Partial</a
-                  >
-                  <a
-                    href="{% url 'mark-contrib-status' c.id 'late' %}"
-                    class="btn btn-small btn-danger"
-                    >Late</a
-                  >
+                <td class="actions-col">
+                  <div class="action-buttons">
+                    <a
+                      href="{% url 'mark-contrib-status' c.id 'fully_paid' %}"
+                      class="btn btn-small btn-success"
+                      >Fully Paid</a
+                    >
+                    <a
+                      href="{% url 'mark-contrib-status' c.id 'partially_paid' %}"
+                      class="btn btn-small btn-warning"
+                      >Partial</a
+                    >
+                    <a
+                      href="{% url 'mark-contrib-status' c.id 'late' %}"
+                      class="btn btn-small btn-danger"
+                      >Late</a
+                    >
+                  </div>
+                  <select class="action-select" onchange="if (this.value) window.location = this.value;">
+                    <option value="">Update status...</option>
+                    <option value="{% url 'mark-contrib-status' c.id 'fully_paid' %}">Fully Paid</option>
+                    <option value="{% url 'mark-contrib-status' c.id 'partially_paid' %}">Partial</option>
+                    <option value="{% url 'mark-contrib-status' c.id 'late' %}">Late</option>
+                  </select>
                 </td>
                 {% endif %}
               </tr>
@@ -741,7 +806,7 @@
                 <th>Status</th>
                 <th>Updated On</th>
                 {% if user.role == "welfare" %}
-                <th>Actions</th>
+                <th class="actions-col">Actions</th>
                 {% endif %}
               </tr>
             </thead>
@@ -749,7 +814,25 @@
               {% for w in welfare_records %}
               <tr>
                 <td>{{ w.member.first_name }} {{ w.member.last_name }}</td>
-                <td>{{ w.amount|floatformat:2 }}</td>
+                <td>
+                  {% if user.role == "welfare" %}
+                  <form method="post" action="{% url 'update-welfare-amount' w.id %}" class="loan-repaid-form">
+                    {% csrf_token %}
+                    <input
+                      type="number"
+                      name="amount"
+                      min="0"
+                      step="0.01"
+                      value="{{ w.amount|floatformat:2 }}"
+                      class="loan-input"
+                      aria-label="Welfare amount"
+                    />
+                    <button type="submit" class="btn btn-small">Save</button>
+                  </form>
+                  {% else %}
+                  {{ w.amount|floatformat:2 }}
+                  {% endif %}
+                </td>
                 <td>{{ w.description }}</td>
                 <td>
                   <span class="status status--{{ w.status|slugify }}">
@@ -759,22 +842,36 @@
                 <td>{{ w.updated_at|date:"M d, Y"|default:"—" }}</td>
 
                 {% if user.role == "welfare" %}
-                <td>
-                  <a
-                    href="{% url 'mark-welfare-status' w.id 'fully paid' %}"
-                    class="btn btn-small btn-success"
-                    >Fully Paid</a
-                  >
-                  <a
-                    href="{% url 'mark-welfare-status' w.id 'partially paid' %}"
-                    class="btn btn-small btn-warning"
-                    >Partial</a
-                  >
-                  <a
-                    href="{% url 'mark-welfare-status' w.id 'not paid' %}"
-                    class="btn btn-small btn-secondary"
-                    >Not Yet Paid</a
-                  >
+                <td class="actions-col">
+                  <div class="action-buttons">
+                    <a
+                      href="{% url 'mark-welfare-status' w.id 'fully_paid' %}"
+                      class="btn btn-small btn-success"
+                      >Fully Paid</a
+                    >
+                    <a
+                      href="{% url 'mark-welfare-status' w.id 'partially_paid' %}"
+                      class="btn btn-small btn-warning"
+                      >Partial</a
+                    >
+                    <a
+                      href="{% url 'mark-welfare-status' w.id 'not_paid' %}"
+                      class="btn btn-small btn-secondary"
+                      >Not Paid</a
+                    >
+                    <a
+                      href="{% url 'mark-welfare-status' w.id 'late' %}"
+                      class="btn btn-small btn-secondary"
+                      >Late</a
+                    >
+                  </div>
+                  <select class="action-select" onchange="if (this.value) window.location = this.value;">
+                    <option value="">Update status...</option>
+                    <option value="{% url 'mark-welfare-status' w.id 'fully_paid' %}">Fully Paid</option>
+                    <option value="{% url 'mark-welfare-status' w.id 'partially_paid' %}">Partial</option>
+                    <option value="{% url 'mark-welfare-status' w.id 'not_paid' %}">Not Paid</option>
+                    <option value="{% url 'mark-welfare-status' w.id 'late' %}">Late</option>
+                  </select>
                 </td>
                 {% endif %}
               </tr>
@@ -808,7 +905,7 @@
           </div>
 
           <div class="chart-box">
-            <h4>Top 5 Monthly Contributions</h4>
+            <h4>Top 5 Loan Applicants ({{ this_year }})</h4>
             <canvas id="topContribChart"></canvas>
           </div>
         </div>

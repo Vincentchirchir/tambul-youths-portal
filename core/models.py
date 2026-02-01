@@ -9,6 +9,7 @@ from django.contrib.auth import get_user_model
 class Loan(models.Model):
     member=models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     amount=models.DecimalField(max_digits=10, decimal_places=2)
+    total_paid_so_far=models.DecimalField(max_digits=10, decimal_places=2, default=0)
     interest=models.DecimalField(max_digits=10, decimal_places=2)
     status=models.CharField(max_length=20, choices= [("pending", "Pending"), ("approved", "Approved"), ("rejected", "Rejected")], default="pending",)
     repayment_status = models.CharField(max_length=20,choices=[("not_paid", "Not Paid"),("partially_paid", "Partially Paid"),("fully_paid", "Fully Paid"),],default="not_paid",)
@@ -23,7 +24,31 @@ class Loan(models.Model):
         if not self.due_date:
             self.due_date = self.loan_date + relativedelta(months=1)
         self.interest = self.amount * Decimal("0.10")
-        self.repayment_updated_at = date.today()
+        previous = None
+        if self.pk:
+            previous = Loan.objects.filter(pk=self.pk).values(
+                "total_paid_so_far",
+                "repayment_status",
+            ).first()
+
+        total_balance = self.amount + self.interest + self.penalty
+        if self.total_paid_so_far < 0:
+            self.total_paid_so_far = Decimal("0.00")
+        if self.total_paid_so_far > total_balance:
+            self.total_paid_so_far = total_balance
+
+        if self.total_paid_so_far == 0:
+            self.repayment_status = "not_paid"
+        elif self.total_paid_so_far < total_balance:
+            self.repayment_status = "partially_paid"
+        else:
+            self.repayment_status = "fully_paid"
+
+        if not previous or (
+            previous["total_paid_so_far"] != self.total_paid_so_far
+            or previous["repayment_status"] != self.repayment_status
+        ):
+            self.repayment_updated_at = date.today()
         super().save(*args, **kwargs)
 
     @property   
@@ -43,7 +68,8 @@ class Loan(models.Model):
         return self.amount + self.interest + self.penalty
     
     def current_balance(self):
-        return self.total_balance
+        remaining = self.total_balance - self.total_paid_so_far
+        return remaining if remaining > 0 else Decimal("0.00")
 
     class Meta:
         permissions=[
@@ -60,12 +86,19 @@ class Contribution(models.Model):
     member=models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="contributions")
     amount=models.DecimalField(max_digits=10, decimal_places=2)
     month=models.DateField()
-    status=models.CharField(max_length=20, choices= [("fully_paid", "Fully Paid"), ("partially_paid", "Partially Paid"), ("late", "Late"), ("not_paid", "Not Yet Paid")], default="not_paid",)
+    status=models.CharField(max_length=20, choices= [("fully_paid", "Fully Paid"), ("partially_paid", "Partially Paid"), ("late", "Late"), ("not_paid", "Not Yet Paid")], default="not_paid")
     created_at=models.DateTimeField(auto_now_add=True)
+    updated_at=models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        unique_together = ('member', 'month')
+        ordering = ['-month']
+
 
     class Meta:
         permissions=[
-            ("export_contributions", "Can export contributions")
+            ("export_contributions", "Can export contributions"),
+            ("edit_contribution_amount", "Can edit contribution amount"),
         ]
 
         ordering=["-month", "-created_at"]
@@ -80,17 +113,22 @@ class Welfare(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="")
     date_given = models.DateField(auto_now_add=True)
     approved_by = models.CharField(max_length=100, blank=True, null=True, help_text="")
+    updated_at = models.DateTimeField(blank=True, null=True)
     status = models.CharField(
         max_length=20,
         choices=[
-            ("partially paid", "Partially Paid"),
-            ("fully paid", "Fully Paid"),
-            ("not paid", "Not Paid"),
+            ("partially_paid", "Partially Paid"),
+            ("fully_paid", "Fully Paid"),
+            ("late", "Late"),
+            ("not_paid", "Not Paid"),
         ],
-        default="not paid",
+        default="not_paid",
     )
 
     class Meta:
+        permissions=[
+            ("edit_welfare_amount", "Can edit welfare amount"),
+        ]
         ordering = ["-date_given"]
 
     def __str__(self):

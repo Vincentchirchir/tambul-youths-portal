@@ -22,6 +22,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 import os
 
+# Detect local vs production (set ENVIRONMENT=production on deploy)
+ENVIRONMENT = os.environ.get("ENVIRONMENT", "development")
+
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
     "django-insecure-=pedvou_cmfo*1admr%42iq7b-o9&2%$xi=7v2gw(t7pit&j9u" 
@@ -30,13 +33,12 @@ SECRET_KEY = os.environ.get(
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = ENVIRONMENT != "production"
 
-ALLOWED_HOSTS = [
-    "tambulyouths.onrender.com",
-    "localhost",
-    "127.0.0.1"
-]
+if ENVIRONMENT == "development":
+    ALLOWED_HOSTS = ["localhost", "127.0.0.1", "172.29.89.229"]
+else:
+    ALLOWED_HOSTS = ["tambulyouths.onrender.com"]
 
 
 CSRF_TRUSTED_ORIGINS = [
@@ -73,14 +75,17 @@ ASGI_APPLICATION = "tambulyouthgroup_portal.asgi.application"
    # },
 #}
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [os.environ.get("REDIS_URL")],
-        },
-    },
-}
+if ENVIRONMENT == "development":
+    CHANNEL_LAYERS = {
+        "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {"hosts": [os.environ.get("REDIS_URL")]},
+        }
+    }
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -116,20 +121,37 @@ WSGI_APPLICATION = 'tambulyouthgroup_portal.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+#if ENVIRONMENT == "development":
+    #DATABASES = {
+     #   "default": {
+    #        "ENGINE": "django.db.backends.sqlite3",
+    #        "NAME": BASE_DIR / "db.sqlite3",
+  #      }
+ #   }
+#else:
 DATABASES = {
-    'default': {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "fieldmax_db_exx4",
-        "USER": "fieldmax_db_exx4_user",
-        "PASSWORD": "lAvVBkjMXyUrxGPBkAYWzYQNJKaOiN5j",
-        "HOST":"dpg-d1i10rili9vc73d54u5g-a.oregon-postgres.render.com",
-        "PORT":"5432",
-        "CONN_MAX_AGE":300, #keeps database open for upto 300 seconds for easier opening in production
-        "OPTIONS":{
-            'sslmode':'require', #this is like encryption for secure purposes
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": "fieldmax_db_exx4",
+            "USER": "fieldmax_db_exx4_user",
+            "PASSWORD": "lAvVBkjMXyUrxGPBkAYWzYQNJKaOiN5j",
+            "HOST": "dpg-d1i10rili9vc73d54u5g-a.oregon-postgres.render.com",
+            "PORT": "5432",
+            "CONN_MAX_AGE": 300,
+            "OPTIONS": {"sslmode": "require"},
         }
     }
-}
+
+# import dj_database_url
+
+# database_url = os.environ.get("DATABASE_URL")
+# DATABASES = {
+#     "default": dj_database_url.config(
+#         default=database_url,
+#         conn_max_age=300,
+#         ssl_require=True,
+#     )
+# }
 
 
 # Password validation
@@ -165,18 +187,31 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+if ENVIRONMENT == "development":
+    STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+else:
+    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 STATIC_URL = '/static/'
-import os
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'core', 'static'),
 ]
 
 # --- Secure Cookies & HTTPS ---
-CSRF_COOKIE_SECURE = True          # Ensures CSRF cookie only sent over HTTPS
-SESSION_COOKIE_SECURE = True       # Same for session cookie
-SECURE_SSL_REDIRECT = True         # Redirect all HTTP -> HTTPS
+if ENVIRONMENT == "development":
+    CSRF_COOKIE_SECURE = False
+    SESSION_COOKIE_SECURE = False
+    SECURE_SSL_REDIRECT = False
+    SECURE_HSTS_SECONDS = 0
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+    SECURE_HSTS_PRELOAD = False
+else:
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SECURE_REFERRER_POLICY = "same-origin"
 SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
@@ -194,9 +229,6 @@ SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
 
 
 # --- HSTS: Force HTTPS ---
-SECURE_HSTS_SECONDS = 31536000     # 1 year
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

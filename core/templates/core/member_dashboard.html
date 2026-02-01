@@ -167,6 +167,7 @@
                 <th>Due Date</th>
                 <th>Today</th>
                 <th>Amount (Ksh)</th>
+                <th>Total Paid (Ksh)</th>
                 <th>Interest (10%)</th>
                 <th>Approval Status</th>
                 <th>Repayment Status</th>
@@ -183,6 +184,7 @@
                 <td>{{ loan.due_date|date:"M d, Y" }}</td>
                 <td>{{ today|date:"M d, Y" }}</td>
                 <td>{{ loan.amount|floatformat:0 }}</td>
+                <td>{{ loan.total_paid_so_far|floatformat:0 }}</td>
                 <td>{{ loan.interest|floatformat:0 }}</td>
 
                 <!-- Approval Status -->
@@ -213,7 +215,7 @@
               </tr>
               {% empty %}
               <tr>
-                <td colspan="11" class="empty">No loan records found</td>
+                <td colspan="12" class="empty">No loan records found</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -280,7 +282,7 @@
                 <td>{{ w.amount|floatformat:2 }}</td>
                 <td>
                   <span class="status status--{{ w.status|slugify }}">
-                    {{ w.status|capfirst }}
+                    {{ w.get_status_display }}
                   </span>
                 </td>
                 <td>{{ w.date_given|date:"M d, Y" }}</td>

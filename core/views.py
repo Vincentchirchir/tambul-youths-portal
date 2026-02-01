@@ -2,6 +2,7 @@ from django.views.generic import TemplateView, CreateView, ListView, View, Detai
 from django.views.generic.edit import FormView, UpdateView
 from django.urls import reverse_lazy, reverse
 from datetime import date
+from decimal import Decimal, InvalidOperation
 from django.db.models import Sum, F, ExpressionWrapper, DecimalField, Case, When, Value, Count
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from.models import Contribution, Loan, Welfare, Announcement, MeetingNote, Notification
@@ -23,6 +24,7 @@ import json
 from django.utils import timezone
 from django.http import JsonResponse
 from django.core.paginator import Paginator
+from django.contrib.auth.mixins import PermissionRequiredMixin
 
 class Index(TemplateView):
     template_name="core/index.html"
@@ -36,9 +38,14 @@ class MemberDashboardView(LoginRequiredMixin, TemplateView):
 
         ctx["unread_notifications"] = user.notifications.filter(is_read=False).count()
 
-        ctx["contrib_ytd"]=(
-            Contribution.objects.filter(member=user, month__year=year)
-            .aggregate(total=Sum("amount"))["total"]or 0
+        ctx["contrib_ytd"] = (
+            Contribution.objects.filter(
+                member=user,
+                month__year=year,
+                status__in=["fully_paid", "partially_paid"],
+            )
+            .aggregate(total=Sum("amount"))["total"]
+            or 0
         )
 
 
@@ -68,7 +75,7 @@ class MemberDashboardView(LoginRequiredMixin, TemplateView):
 
         ctx["recent_contributions"]=(
             Contribution.objects.filter(member=user)
-            .order_by("-month", "-created_at")[:6]
+            .order_by("-month", "-created_at")[:12]
         )
 
 
@@ -130,7 +137,7 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         ctx["pending_loans"] = Loan.objects.filter(status="pending").count()
         ctx["total_welfare"] = (
             Welfare.objects.filter(
-                status__in=["fully paid", "partially paid"]
+                status__in=["fully_paid", "partially_paid"]
             )
             .aggregate(total=Sum("amount"))["total"]
             or 0
@@ -138,8 +145,13 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
 
         # Personal summary metrics for the logged-in committee member
         ctx["my_contrib_ytd"] = (
-            Contribution.objects.filter(member=user, month__year=year)
-            .aggregate(total=Sum("amount"))["total"] or 0
+            Contribution.objects.filter(
+                member=user,
+                month__year=year,
+                status__in=["fully_paid", "partially_paid"],
+            )
+            .aggregate(total=Sum("amount"))["total"]
+            or 0
         )
 
         personal_active_loans = Loan.objects.filter(
@@ -199,12 +211,16 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         #4️ ANALYTICS DATA
         # Monthly contribution
         monthly = (
-            Contribution.objects.filter(month__year=year)
+            Contribution.objects.filter(
+                month__year=year,
+                status__in=["fully_paid", "partially_paid"],
+            )
             .annotate(month_label=TruncMonth("month"))
             .values("month_label")
             .annotate(total=Sum("amount"))
             .order_by("month_label")
         )
+
         ctx["monthly_labels"] = [m["month_label"].strftime("%b") for m in monthly]
         ctx["monthly_values"] = [float(m["total"]) for m in monthly]
 
@@ -224,14 +240,15 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         ctx["this_year"] = year
         ctx["today"] = date.today()
 
-        # Top 5 MEMBERS FOR MONTHLY CONTRIBUTION
-        top_contrib = (
-            Contribution.objects.values("member__username")
+        # Top 5 members by total loan amount applied this year
+        top_borrowers = (
+            Loan.objects.filter(loan_date__year=year)
+            .values("member__username")
             .annotate(total=Sum("amount"))
             .order_by("-total")[:5]
         )
-        ctx["top_contributors"] = [c["member__username"] for c in top_contrib]
-        ctx["top_contrib_values"] = [float(c["total"]) for c in top_contrib]
+        ctx["top_contributors"] = [b["member__username"] for b in top_borrowers]
+        ctx["top_contrib_values"] = [float(b["total"]) for b in top_borrowers]
 
         # Pre-serialize chart data for front-end consumption.
         ctx["chart_datasets"] = {
@@ -343,7 +360,7 @@ class ExportWelfareCSV(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                 w.member.username,
                 float(w.amount),
                 w.description,
-                w.status.capitalize(),
+                w.get_status_display(),
                 w.date_given.strftime("%Y-%m-%d")
             ])
         return response
@@ -390,7 +407,7 @@ class ExportWelfarePDF(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         for w in Welfare.objects.all().order_by("-date_given"):
             p.drawString(50, y, w.member.username)
             p.drawString(180, y, f"{float(w.amount):,.2f}")
-            p.drawString(280, y, w.status.capitalize())
+            p.drawString(280, y, w.get_status_display())
             desc = (w.description[:30] + "...") if len(w.description) > 30 else w.description
             p.drawString(360, y, desc)
             p.drawString(500, y, w.date_given.strftime("%Y-%m-%d"))
@@ -417,12 +434,13 @@ class ExportLoansCSV(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         response = HttpResponse(content_type="text/csv")
         response["Content-Disposition"] = 'attachment; filename="loans.csv"'
         writer = csv.writer(response)
-        writer.writerow(["Member", "Amount (Ksh)", "Status", "Loan Date", "Due Date"])
+        writer.writerow(["Member", "Amount (Ksh)", "Total Paid (Ksh)", "Status", "Loan Date", "Due Date"])
 
         for loan in Loan.objects.all().order_by("-created_at"):
             writer.writerow([
                 loan.member.username,
                 float(loan.amount),
+                float(loan.total_paid_so_far),
                 loan.status.capitalize(),
                 loan.loan_date.strftime("%Y-%m-%d") if loan.loan_date else "",
                 loan.due_date.strftime("%Y-%m-%d") if loan.due_date else ""
@@ -458,22 +476,24 @@ class ExportLoansPDF(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         y = height - 130
         p.setFont("Helvetica-Bold", 10)
         p.drawString(50, y, "Member")
-        p.drawString(180, y, "Amount")
-        p.drawString(260, y, "Status")
-        p.drawString(340, y, "Loan Date")
-        p.drawString(440, y, "Due Date")
+        p.drawString(165, y, "Amount")
+        p.drawString(235, y, "Total Paid")
+        p.drawString(305, y, "Status")
+        p.drawString(380, y, "Loan Date")
+        p.drawString(460, y, "Due Date")
         y -= 20
 
         #DATA ROWS
         p.setFont("Helvetica", 9)
         for loan in Loan.objects.all().order_by("-created_at"):
             p.drawString(50, y, loan.member.username)
-            p.drawString(180, y, f"{float(loan.amount):,.2f}")
-            p.drawString(260, y, loan.status.capitalize())
+            p.drawString(165, y, f"{float(loan.amount):,.2f}")
+            p.drawString(235, y, f"{float(loan.total_paid_so_far):,.2f}")
+            p.drawString(305, y, loan.status.capitalize())
             if loan.loan_date:
-                p.drawString(340, y, loan.loan_date.strftime("%Y-%m-%d"))
+                p.drawString(380, y, loan.loan_date.strftime("%Y-%m-%d"))
             if loan.due_date:
-                p.drawString(440, y, loan.due_date.strftime("%Y-%m-%d"))
+                p.drawString(460, y, loan.due_date.strftime("%Y-%m-%d"))
             y -= 15
             if y < 50:
                 p.showPage()
@@ -506,6 +526,42 @@ class LoanRepaymentUpdateView(LoginRequiredMixin, View):
 
         return redirect("committee-dashboard")
 
+class LoanTotalPaidUpdateView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        if request.user.role != "chairperson":
+            return HttpResponseForbidden("You are not authorized to update loan repayments.")
+
+        loan = get_object_or_404(Loan, pk=pk)
+        raw_amount = request.POST.get("total_paid_so_far", "").strip()
+
+        try:
+            amount_repaid = Decimal(raw_amount)
+        except (InvalidOperation, TypeError):
+            messages.warning(request, "Enter a valid total paid amount.")
+            return redirect("committee-dashboard")
+
+        if amount_repaid < 0:
+            messages.warning(request, "Total paid cannot be negative.")
+            return redirect("committee-dashboard")
+
+        total_balance = loan.total_balance
+        if amount_repaid > total_balance:
+            messages.warning(request, "Total paid cannot exceed the total balance.")
+            return redirect("committee-dashboard")
+
+        loan.total_paid_so_far = amount_repaid
+        if amount_repaid == 0:
+            loan.repayment_status = "not_paid"
+        elif amount_repaid < total_balance:
+            loan.repayment_status = "partially_paid"
+        else:
+            loan.repayment_status = "fully_paid"
+
+        loan.repayment_updated_at = timezone.now()
+        loan.save(update_fields=["total_paid_so_far", "repayment_status", "repayment_updated_at"])
+        messages.success(request, f"Total paid updated for {loan.member.username}.")
+        return redirect("committee-dashboard")
+
 class ContributionStatusUpdateView(LoginRequiredMixin, View):
     def get(self, request, pk, status):
         # Restrict to Treasurer only
@@ -528,6 +584,54 @@ class ContributionStatusUpdateView(LoginRequiredMixin, View):
 
         return redirect("committee-dashboard")
 
+class ContributionAmountUpdateView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        if request.user.role != "treasurer":
+            return HttpResponseForbidden("You are not authorized to update contributions.")
+
+        contribution = get_object_or_404(Contribution, pk=pk)
+        raw_amount = request.POST.get("amount", "").strip()
+
+        try:
+            amount = Decimal(raw_amount)
+        except (InvalidOperation, TypeError):
+            messages.warning(request, "Enter a valid contribution amount.")
+            return redirect("committee-dashboard")
+
+        if amount < 0:
+            messages.warning(request, "Contribution amount cannot be negative.")
+            return redirect("committee-dashboard")
+
+        contribution.amount = amount
+        contribution.updated_at = timezone.now()
+        contribution.save(update_fields=["amount", "updated_at"])
+        messages.success(request, f"Contribution amount updated for {contribution.member.username}.")
+        return redirect("committee-dashboard")
+
+class WelfareAmountUpdateView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        if request.user.role != "welfare":
+            return HttpResponseForbidden("You are not authorized to update welfare records.")
+
+        welfare = get_object_or_404(Welfare, pk=pk)
+        raw_amount = request.POST.get("amount", "").strip()
+
+        try:
+            amount = Decimal(raw_amount)
+        except (InvalidOperation, TypeError):
+            messages.warning(request, "Enter a valid welfare amount.")
+            return redirect("committee-dashboard")
+
+        if amount < 0:
+            messages.warning(request, "Welfare amount cannot be negative.")
+            return redirect("committee-dashboard")
+
+        welfare.amount = amount
+        welfare.updated_at = timezone.now()
+        welfare.save(update_fields=["amount", "updated_at"])
+        messages.success(request, f"Welfare amount updated for {welfare.member.username}.")
+        return redirect("committee-dashboard")
+
 class WelfareStatusUpdateView(LoginRequiredMixin, View):
     def get(self, request, pk, status):
         # Restrict only to Welfare
@@ -536,7 +640,7 @@ class WelfareStatusUpdateView(LoginRequiredMixin, View):
 
         welfare = get_object_or_404(Welfare, pk=pk)
 
-        valid_statuses = ["fully paid", "partially paid", "late", "not paid"]
+        valid_statuses = ["fully_paid", "partially_paid", "late", "not_paid"]
         if status in valid_statuses:
             welfare.status = status
             welfare.updated_at = timezone.now()
@@ -788,3 +892,18 @@ class MeetingMinutesDetailView(LoginRequiredMixin, View):
                 "dashboard_url": dashboard_url,
             },
         )
+
+class ContributionUpdateView(PermissionRequiredMixin, UpdateView):
+    model = Contribution
+    fields = ["amount", "status"]
+    permission_required = "core.edit_contribution_amount"
+
+class WelfareUpdateView(PermissionRequiredMixin, UpdateView):
+    model = Welfare
+    fields = ["amount", "status", "description"]
+    permission_required = "core.edit_welfare_amount"
+
+class LoanUpdateView(PermissionRequiredMixin, UpdateView):
+    model = Loan
+    fields = ["amount", "repayment_status", "status"]
+    permission_required = "core.edit_loan_amount"
