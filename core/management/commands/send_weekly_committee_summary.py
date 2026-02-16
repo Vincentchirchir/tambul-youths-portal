@@ -41,7 +41,7 @@ class Command(BaseCommand):
 
         overdue_loans_count = Loan.objects.filter(
             status="approved",
-            repayment_status__in=["not_paid", "partially_paid"],
+            repayment_status__in=["not_paid", "partially_paid", "late"],
             due_date__lt=today,
         ).count()
 

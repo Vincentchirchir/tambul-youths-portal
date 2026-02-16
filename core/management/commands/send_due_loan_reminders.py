@@ -34,6 +34,14 @@ class Command(BaseCommand):
         contribution_sent = 0
         welfare_sent = 0
 
+        auto_late_loan_updates = list(
+            Loan.overdue_unpaid_queryset(today=today)
+            .select_related("member")
+            .order_by("member_id", "due_date")
+        )
+        Loan.mark_overdue_as_late(today=today)
+        self._send_loan_late_status_updates(auto_late_loan_updates, today)
+
         for days_ago in range(backfill_days, -1, -1):
             reference_date = today - timedelta(days=days_ago)
             loan_sent += self._process_loans(reference_date)
@@ -54,7 +62,7 @@ class Command(BaseCommand):
     def _process_loans(self, reference_date):
         loans = Loan.objects.filter(
             status="approved",
-            repayment_status__in=["not_paid", "partially_paid"],
+            repayment_status__in=["not_paid", "partially_paid", "late"],
             due_date__isnull=False,
             member__is_active=True,
         ).select_related("member")
@@ -129,7 +137,36 @@ class Command(BaseCommand):
         )
         return 1
 
+    def _send_loan_late_status_updates(self, updated_loans, today):
+        grouped = {}
+        for loan in updated_loans:
+            grouped.setdefault(loan.member_id, {"member": loan.member, "loan_ids": []})
+            grouped[loan.member_id]["loan_ids"].append(str(loan.pk))
+
+        for payload in grouped.values():
+            member = payload["member"]
+            if self._already_sent_today(member.pk, "Loan Repayment Status Updated", today):
+                continue
+            loan_refs = ", ".join(payload["loan_ids"])
+            notify_users(
+                recipients=[member],
+                title="Loan Repayment Status Updated",
+                message=(
+                    f"Your loan repayment status is now Late for loan ID(s): {loan_refs}. "
+                    "This is because your due date has passed and your balance is not fully paid."
+                ),
+                link="/member-dashboard",
+                send_email=True,
+            )
+
     def _send_contribution_reminders(self, today):
+        auto_late_updates = list(
+            Contribution.overdue_not_paid_queryset(today=today)
+            .select_related("member")
+            .order_by("member_id", "month")
+        )
+        Contribution.mark_overdue_as_late(today=today)
+        self._send_contribution_late_status_updates(auto_late_updates, today)
         month_start = today.replace(day=1)
         unpaid_statuses = ["not_paid", "partially_paid", "late"]
         contributions = Contribution.objects.filter(
@@ -167,7 +204,39 @@ class Command(BaseCommand):
             sent += 1
         return sent
 
+    def _send_contribution_late_status_updates(self, updated_rows, today):
+        grouped = {}
+        for contribution in updated_rows:
+            grouped.setdefault(contribution.member_id, {"member": contribution.member, "months": []})
+            grouped[contribution.member_id]["months"].append(
+                contribution.month.strftime("%B %Y")
+            )
+
+        for payload in grouped.values():
+            member = payload["member"]
+            if self._already_sent_today(member.pk, "Contribution Status Updated", today):
+                continue
+            months = ", ".join(payload["months"])
+            notify_users(
+                recipients=[member],
+                title="Contribution Status Updated",
+                message=(
+                    f"Your contribution status changed to Late for: {months}. "
+                    "This is because payment is still pending after the 10th."
+                ),
+                link="/member-dashboard",
+                send_email=True,
+            )
+
     def _send_welfare_reminders(self, today):
+        auto_late_welfare_updates = list(
+            Welfare.overdue_unpaid_queryset(today=today)
+            .select_related("member")
+            .order_by("member_id", "date_given")
+        )
+        Welfare.mark_overdue_as_late(today=today)
+        self._send_welfare_late_status_updates(auto_late_welfare_updates, today)
+
         unpaid_statuses = ["not_paid", "partially_paid", "late"]
         welfare_records = (
             Welfare.objects.filter(member__is_active=True, status__in=unpaid_statuses)
@@ -197,6 +266,28 @@ class Command(BaseCommand):
             )
             sent += 1
         return sent
+
+    def _send_welfare_late_status_updates(self, updated_rows, today):
+        grouped = {}
+        for welfare in updated_rows:
+            grouped.setdefault(welfare.member_id, {"member": welfare.member, "record_ids": []})
+            grouped[welfare.member_id]["record_ids"].append(str(welfare.pk))
+
+        for payload in grouped.values():
+            member = payload["member"]
+            if self._already_sent_today(member.pk, "Welfare Status Updated", today):
+                continue
+            record_refs = ", ".join(payload["record_ids"])
+            notify_users(
+                recipients=[member],
+                title="Welfare Status Updated",
+                message=(
+                    f"Your welfare status is now Late for record ID(s): {record_refs}. "
+                    "This is because the welfare due date (June 15) has passed and payment is not fully settled."
+                ),
+                link="/member-dashboard",
+                send_email=True,
+            )
 
     def _already_sent_today(self, user_id, title, today):
         return Notification.objects.filter(

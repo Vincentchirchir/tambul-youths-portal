@@ -78,7 +78,7 @@ class MemberDashboardView(LoginRequiredMixin, TemplateView):
 
         ctx["can_apply_loan"] = not Loan.objects.filter(
             member=user,
-            repayment_status__in=["not_paid", "partially_paid"],
+            repayment_status__in=["not_paid", "partially_paid", "late"],
             status__in=["pending", "approved"],
         ).exists()
 
@@ -175,7 +175,7 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
                 #Check if committee member can apply loan
         ctx["can_apply_loan"] = not Loan.objects.filter(
             member=user,
-            repayment_status__in=["not_paid", "partially_paid"],
+            repayment_status__in=["not_paid", "partially_paid", "late"],
             status__in=["pending", "approved"],
         ).exists()
 
@@ -520,7 +520,7 @@ class LoanRepaymentUpdateView(LoginRequiredMixin, View):
         loan = get_object_or_404(Loan, pk=pk)
 
         # Update repayment status and date
-        valid_statuses = ["fully_paid", "partially_paid", "not_paid"]
+        valid_statuses = ["fully_paid", "partially_paid", "not_paid", "late"]
         if status in valid_statuses:
             loan.repayment_status = status
             loan.repayment_updated_at = timezone.now()
@@ -634,15 +634,24 @@ class ContributionAmountUpdateView(LoginRequiredMixin, View):
             messages.warning(request, "Contribution amount cannot be negative.")
             return redirect("committee-dashboard")
 
+        if amount >= Decimal("200"):
+            derived_status = "fully_paid"
+        elif amount > 0:
+            derived_status = "partially_paid"
+        else:
+            derived_status = "not_paid"
+
         contribution.amount = amount
+        contribution.status = derived_status
         contribution.updated_at = timezone.now()
-        contribution.save(update_fields=["amount", "updated_at"])
+        contribution.save(update_fields=["amount", "status", "updated_at"])
         notify_users(
             recipients=[contribution.member],
             title="Contribution Amount Updated",
             message=(
                 f"Your contribution amount for {contribution.month.strftime('%B %Y')} "
-                f"was updated to Ksh {contribution.amount}."
+                f"was updated to Ksh {contribution.amount}. "
+                f"Current status: {contribution.get_status_display()}."
             ),
             link="/member-dashboard",
             send_email=True,
@@ -723,7 +732,7 @@ class LoanApplicationView(LoginRequiredMixin, CreateView):
         # Block duplicate unpaid or active loans
         existing_loan = Loan.objects.filter(
             member=user,
-            repayment_status__in=["not_paid", "partially_paid"],
+            repayment_status__in=["not_paid", "partially_paid", "late"],
             status__in=["pending", "approved"],
         ).exists()
 

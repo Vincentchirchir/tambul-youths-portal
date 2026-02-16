@@ -5,6 +5,7 @@ from datetime import date
 from decimal import Decimal
 from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 class Loan(models.Model):
     member=models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -12,11 +13,38 @@ class Loan(models.Model):
     total_paid_so_far=models.DecimalField(max_digits=10, decimal_places=2, default=0)
     interest=models.DecimalField(max_digits=10, decimal_places=2)
     status=models.CharField(max_length=20, choices= [("pending", "Pending"), ("approved", "Approved"), ("rejected", "Rejected")], default="pending",)
-    repayment_status = models.CharField(max_length=20,choices=[("not_paid", "Not Paid"),("partially_paid", "Partially Paid"),("fully_paid", "Fully Paid"),],default="not_paid",)
+    repayment_status = models.CharField(
+        max_length=20,
+        choices=[
+            ("not_paid", "Not Paid"),
+            ("partially_paid", "Partially Paid"),
+            ("fully_paid", "Fully Paid"),
+            ("late", "Late"),
+        ],
+        default="not_paid",
+    )
     repayment_updated_at = models.DateField(blank=True, null=True)
     loan_date=models.DateField(auto_now_add=True)
     due_date=models.DateField(blank=True, null=True)
     created_at=models.DateTimeField(auto_now_add=True)
+
+    @classmethod
+    def overdue_unpaid_queryset(cls, today=None):
+        today = today or timezone.localdate()
+        return cls.objects.filter(
+            status="approved",
+            due_date__isnull=False,
+            due_date__lt=today,
+            repayment_status__in=["not_paid", "partially_paid"],
+        )
+
+    @classmethod
+    def mark_overdue_as_late(cls, today=None):
+        today = today or timezone.localdate()
+        return cls.overdue_unpaid_queryset(today=today).update(
+            repayment_status="late",
+            repayment_updated_at=today,
+        )
 
     def save(self, *args, **kwargs):
         if not self.loan_date:
@@ -38,11 +66,21 @@ class Loan(models.Model):
             self.total_paid_so_far = total_balance
 
         if self.total_paid_so_far == 0:
-            self.repayment_status = "not_paid"
+            derived_status = "not_paid"
         elif self.total_paid_so_far < total_balance:
-            self.repayment_status = "partially_paid"
+            derived_status = "partially_paid"
         else:
-            self.repayment_status = "fully_paid"
+            derived_status = "fully_paid"
+
+        is_overdue = (
+            self.status == "approved"
+            and self.due_date
+            and timezone.localdate() > self.due_date
+        )
+        if derived_status != "fully_paid" and is_overdue:
+            self.repayment_status = "late"
+        else:
+            self.repayment_status = derived_status
 
         if not previous or (
             previous["total_paid_so_far"] != self.total_paid_so_far
@@ -90,6 +128,33 @@ class Contribution(models.Model):
     created_at=models.DateTimeField(auto_now_add=True)
     updated_at=models.DateTimeField(blank=True, null=True)
 
+    @classmethod
+    def overdue_not_paid_queryset(cls, today=None):
+        today = today or timezone.localdate()
+        month_start = today.replace(day=1)
+        overdue_filter = models.Q(month__lt=month_start)
+        if today.day > 10:
+            overdue_filter |= models.Q(month=month_start)
+        return cls.objects.filter(status="not_paid").filter(overdue_filter)
+
+    @classmethod
+    def mark_overdue_as_late(cls, today=None):
+        return cls.overdue_not_paid_queryset(today=today).update(
+            status="late",
+            updated_at=timezone.now(),
+        )
+
+    def save(self, *args, **kwargs):
+        today = timezone.localdate()
+        month_start = today.replace(day=1)
+        contribution_month_start = self.month.replace(day=1)
+        is_overdue = contribution_month_start < month_start or (
+            contribution_month_start == month_start and today.day > 10
+        )
+        if self.status == "not_paid" and is_overdue:
+            self.status = "late"
+        super().save(*args, **kwargs)
+
     class Meta:
         unique_together = ('member', 'month')
         ordering = ['-month']
@@ -108,6 +173,9 @@ class Contribution(models.Model):
     
 
 class Welfare(models.Model): 
+    WELFARE_DUE_MONTH = 6
+    WELFARE_DUE_DAY = 15
+
     member = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="welfare_records")
     description = models.TextField(help_text="")
     amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="")
@@ -124,6 +192,33 @@ class Welfare(models.Model):
         ],
         default="not_paid",
     )
+
+    @classmethod
+    def overdue_unpaid_queryset(cls, today=None):
+        today = today or timezone.localdate()
+        cutoff = date(today.year, cls.WELFARE_DUE_MONTH, cls.WELFARE_DUE_DAY)
+        overdue_filter = models.Q(date_given__year__lt=today.year)
+        if today > cutoff:
+            overdue_filter |= models.Q(date_given__year=today.year)
+        return cls.objects.filter(status__in=["not_paid", "partially_paid"]).filter(
+            overdue_filter
+        )
+
+    @classmethod
+    def mark_overdue_as_late(cls, today=None):
+        return cls.overdue_unpaid_queryset(today=today).update(
+            status="late",
+            updated_at=timezone.now(),
+        )
+
+    def save(self, *args, **kwargs):
+        today = timezone.localdate()
+        if not self.date_given:
+            self.date_given = today
+        cutoff = date(self.date_given.year, self.WELFARE_DUE_MONTH, self.WELFARE_DUE_DAY)
+        if today > cutoff and self.status in {"not_paid", "partially_paid"}:
+            self.status = "late"
+        super().save(*args, **kwargs)
 
     class Meta:
         permissions=[
