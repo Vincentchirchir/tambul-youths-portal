@@ -38,9 +38,7 @@ class Command(BaseCommand):
             reference_date = today - timedelta(days=days_ago)
             loan_sent += self._process_loans(reference_date)
 
-        # Monthly contribution reminders are sent only before/on day 10.
-        if today.day <= 10:
-            contribution_sent = self._send_contribution_reminders(today)
+        contribution_sent = self._send_contribution_reminders(today)
 
         welfare_sent = self._send_welfare_reminders(today)
         total_sent = loan_sent + contribution_sent + welfare_sent
@@ -134,35 +132,35 @@ class Command(BaseCommand):
     def _send_contribution_reminders(self, today):
         month_start = today.replace(day=1)
         unpaid_statuses = ["not_paid", "partially_paid", "late"]
-        contributions = (
-            Contribution.objects.filter(
-                member__is_active=True,
-                status__in=unpaid_statuses,
-                month__lte=month_start,
-            )
-            .select_related("member")
-            .order_by("member_id", "month")
-        )
+        contributions = Contribution.objects.filter(
+            member__is_active=True,
+            status__in=unpaid_statuses,
+            month=month_start,
+        ).select_related("member")
 
-        grouped = {}
-        for contribution in contributions:
-            grouped.setdefault(contribution.member_id, {"member": contribution.member, "months": []})
-            grouped[contribution.member_id]["months"].append(contribution.month.strftime("%b %Y"))
+        reminder_amount = 200 if today.day <= 10 else 250
+        month_label = month_start.strftime("%B %Y")
 
         sent = 0
-        for payload in grouped.values():
-            member = payload["member"]
+        for contribution in contributions:
+            member = contribution.member
             if self._already_sent_today(member.pk, "Monthly Contribution Reminder", today):
                 continue
-            months = payload["months"][:5]
-            suffix = "..." if len(payload["months"]) > 5 else ""
+            if today.day <= 10:
+                message = (
+                    f"Your monthly contribution for {month_label} is pending. "
+                    f"Please pay Ksh {reminder_amount} by the 10th."
+                )
+            else:
+                message = (
+                    f"Your monthly contribution for {month_label} is still not fully paid. "
+                    f"Amount due is Ksh {reminder_amount} (Ksh 200 + Ksh 50 penalty). "
+                    "Please pay as soon as possible."
+                )
             notify_users(
                 recipients=[member],
                 title="Monthly Contribution Reminder",
-                message=(
-                    f"You have {len(payload['months'])} contribution record(s) not fully paid "
-                    f"({', '.join(months)}{suffix}). Please settle before the 10th of this month."
-                ),
+                message=message,
                 link="/member-dashboard",
                 send_email=True,
             )
