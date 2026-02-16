@@ -138,10 +138,22 @@ from django.db import models
 from django.conf import settings
 
 class MeetingNote(models.Model):
+    AUDIENCE_ALL = "all_members"
+    AUDIENCE_COMMITTEE = "committee_only"
+    AUDIENCE_CHOICES = [
+        (AUDIENCE_ALL, "All members"),
+        (AUDIENCE_COMMITTEE, "Committee only"),
+    ]
+
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     content = models.TextField(blank=True, help_text="Optional full text of minutes")
     file = models.FileField(upload_to="minutes/", blank=True, null=True)
+    audience = models.CharField(
+        max_length=20,
+        choices=AUDIENCE_CHOICES,
+        default=AUDIENCE_ALL,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     posted_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -182,3 +194,25 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"{self.title} → {self.recipient.email}"
+
+
+class LoanReminderLog(models.Model):
+    REMINDER_DUE_SOON = "due_soon"
+    REMINDER_OVERDUE = "overdue"
+    REMINDER_TYPE_CHOICES = [
+        (REMINDER_DUE_SOON, "Due soon"),
+        (REMINDER_OVERDUE, "Overdue"),
+    ]
+
+    loan = models.ForeignKey(Loan, on_delete=models.CASCADE, related_name="reminder_logs")
+    reminder_type = models.CharField(max_length=20, choices=REMINDER_TYPE_CHOICES)
+    reminder_date = models.DateField()
+    days_offset = models.IntegerField(help_text="Days until/since due date when reminder was sent.")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("loan", "reminder_type", "reminder_date")
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.loan_id} {self.reminder_type} {self.reminder_date}"

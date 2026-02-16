@@ -744,6 +744,7 @@ main {
 .status--fully-paid { background: #c3e6cb; color: #155724; }
 .status--partially-paid { background: #ffeeba; color: #856404; }
 .status--not-paid { background: #f5c6cb; color: #721c24; }
+.status--not-yet-paid { background: #f5c6cb; color: #721c24; }
 .status--late { background: #f5c6cb; color: #721c24; }
 
 /*  Extra Buttons / Muted Text  */

@@ -284,9 +284,9 @@
                   <!-- Repayment Status -->
                   <td>
                     <span
-                      class="status status--{{ loan.repayment_status|slugify }}"
+                      class="status status--{{ loan.get_repayment_status_display|slugify }}"
                     >
-                      {{ loan.repayment_status|capfirst }}
+                      {{ loan.get_repayment_status_display }}
                     </span>
                   </td>
 
@@ -332,7 +332,7 @@
                   <td>{{ c.amount|floatformat:2 }}</td>
                   <td>{{ c.created_at|date:"M d, Y" }}</td>
                   <td>
-                    <span class="status status--{{ c.status|slugify }}">
+                    <span class="status status--{{ c.get_status_display|slugify }}">
                       {{ c.get_status_display }}
                     </span>
                   </td>
@@ -367,11 +367,11 @@
                   <td>{{ forloop.counter }}</td>
                   <td>{{ w.date_given|date:"F Y" }}</td>
                   <td>{{ w.amount|floatformat:2 }}</td>
-                  <td>
-                    <span class="status status--{{ w.status|slugify }}">
-                      {{ w.status|capfirst }}
-                    </span>
-                  </td>
+                <td>
+                  <span class="status status--{{ w.get_status_display|slugify }}">
+                    {{ w.get_status_display }}
+                  </span>
+                </td>
                   <td>{{ w.date_given|date:"M d, Y" }}</td>
                 </tr>
                 {% empty %}
@@ -619,9 +619,9 @@
                 <!-- Repayment -->
                 <td>
                   <span
-                    class="status status--{{ loan.repayment_status|slugify }}"
+                    class="status status--{{ loan.get_repayment_status_display|slugify }}"
                   >
-                    {{ loan.repayment_status|capfirst }}
+                    {{ loan.get_repayment_status_display }}
                   </span>
                 </td>
 
@@ -742,7 +742,7 @@
                 <td>{{ c.created_at|date:"M d, Y" }}</td>
 
                 <td>
-                  <span class="status status--{{ c.status|slugify }}">
+                  <span class="status status--{{ c.get_status_display|slugify }}">
                     {{ c.get_status_display }}
                   </span>
                 </td>
@@ -835,7 +835,7 @@
                 </td>
                 <td>{{ w.description }}</td>
                 <td>
-                  <span class="status status--{{ w.status|slugify }}">
+                  <span class="status status--{{ w.get_status_display|slugify }}">
                     {{ w.get_status_display }}
                   </span>
                 </td>

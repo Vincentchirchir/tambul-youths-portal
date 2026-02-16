@@ -49,10 +49,11 @@ class AnnouncementForm(forms.ModelForm):
 class MeetingNoteForm(forms.ModelForm):
     class Meta:
         model = MeetingNote
-        fields = ["title", "description", "content", "file"]
+        fields = ["title", "description", "content", "file", "audience"]
         widgets = {
             "title": forms.TextInput(attrs={"class": "form-control", "placeholder": "Enter meeting title"}),
             "description": forms.Textarea(attrs={"class": "form-control", "rows": 2, "placeholder": "Short description"}),
             "content": forms.Textarea(attrs={"class": "form-control", "rows": 6, "placeholder": "Full meeting minutes (optional if uploading a file)"}),
             "file": forms.ClearableFileInput(attrs={"class": "form-control"}),
+            "audience": forms.Select(attrs={"class": "form-control"}),
         }

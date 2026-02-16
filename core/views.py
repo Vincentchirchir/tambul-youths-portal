@@ -25,6 +25,19 @@ from django.utils import timezone
 from django.http import JsonResponse
 from django.core.paginator import Paginator
 from django.contrib.auth.mixins import PermissionRequiredMixin
+from .services.notifications import notify_users, committee_users
+
+COMMITTEE_ROLES = {
+    "chairperson",
+    "vice-chairperson",
+    "treasurer",
+    "secretary",
+    "vice-secretary",
+    "welfare",
+    "coordinator",
+    "admin",
+    "committee",
+}
 
 class Index(TemplateView):
     template_name="core/index.html"
@@ -92,7 +105,9 @@ class MemberDashboardView(LoginRequiredMixin, TemplateView):
             if Announcement.objects.exists() else []
         )
 
-        ctx["meeting_notes"] = MeetingNote.objects.all().order_by("-created_at")
+        ctx["meeting_notes"] = (
+            MeetingNote.objects.filter(audience=MeetingNote.AUDIENCE_ALL).order_by("-created_at")
+        )
 
 
         ctx["this_year"]=year
@@ -103,17 +118,7 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
 
     #  Access Control 
     def test_func(self):
-        return self.request.user.role in [
-            "chairperson",
-            "vice-chairperson",
-            "treasurer",
-            "secretary",
-            "vice-secretary",
-            "welfare",
-            "coordinator",
-            "admin",
-            "committee",
-        ]
+        return self.request.user.role in COMMITTEE_ROLES
 
     # Context Data
     def get_context_data(self, **kwargs):
@@ -520,6 +525,13 @@ class LoanRepaymentUpdateView(LoginRequiredMixin, View):
             loan.repayment_status = status
             loan.repayment_updated_at = timezone.now()
             loan.save()
+            notify_users(
+                recipients=[loan.member],
+                title="Loan Repayment Status Updated",
+                message=f"Your loan repayment status is now {loan.get_repayment_status_display()}.",
+                link="/member-dashboard",
+                send_email=True,
+            )
             messages.success(request, f"Loan for {loan.member.username} marked as {status.replace('_', ' ').title()}.")
         else:
             messages.warning(request, "Invalid repayment status.")
@@ -559,6 +571,16 @@ class LoanTotalPaidUpdateView(LoginRequiredMixin, View):
 
         loan.repayment_updated_at = timezone.now()
         loan.save(update_fields=["total_paid_so_far", "repayment_status", "repayment_updated_at"])
+        notify_users(
+            recipients=[loan.member],
+            title="Loan Payment Updated",
+            message=(
+                f"Your loan payment was updated. Total paid: Ksh {loan.total_paid_so_far}. "
+                f"Current status: {loan.get_repayment_status_display()}."
+            ),
+            link="/member-dashboard",
+            send_email=True,
+        )
         messages.success(request, f"Total paid updated for {loan.member.username}.")
         return redirect("committee-dashboard")
 
@@ -575,6 +597,16 @@ class ContributionStatusUpdateView(LoginRequiredMixin, View):
             contribution.status = status
             contribution.updated_at = timezone.now()
             contribution.save()
+            notify_users(
+                recipients=[contribution.member],
+                title="Contribution Status Updated",
+                message=(
+                    f"Your contribution for {contribution.month.strftime('%B %Y')} "
+                    f"is now {contribution.get_status_display()}."
+                ),
+                link="/member-dashboard",
+                send_email=True,
+            )
             messages.success(
                 request,
                 f"Contribution for {contribution.member.username} marked as {status.title()}."
@@ -605,6 +637,16 @@ class ContributionAmountUpdateView(LoginRequiredMixin, View):
         contribution.amount = amount
         contribution.updated_at = timezone.now()
         contribution.save(update_fields=["amount", "updated_at"])
+        notify_users(
+            recipients=[contribution.member],
+            title="Contribution Amount Updated",
+            message=(
+                f"Your contribution amount for {contribution.month.strftime('%B %Y')} "
+                f"was updated to Ksh {contribution.amount}."
+            ),
+            link="/member-dashboard",
+            send_email=True,
+        )
         messages.success(request, f"Contribution amount updated for {contribution.member.username}.")
         return redirect("committee-dashboard")
 
@@ -629,6 +671,13 @@ class WelfareAmountUpdateView(LoginRequiredMixin, View):
         welfare.amount = amount
         welfare.updated_at = timezone.now()
         welfare.save(update_fields=["amount", "updated_at"])
+        notify_users(
+            recipients=[welfare.member],
+            title="Welfare Amount Updated",
+            message=f"Your welfare amount was updated to Ksh {welfare.amount}.",
+            link="/member-dashboard",
+            send_email=True,
+        )
         messages.success(request, f"Welfare amount updated for {welfare.member.username}.")
         return redirect("committee-dashboard")
 
@@ -645,6 +694,13 @@ class WelfareStatusUpdateView(LoginRequiredMixin, View):
             welfare.status = status
             welfare.updated_at = timezone.now()
             welfare.save()
+            notify_users(
+                recipients=[welfare.member],
+                title="Welfare Status Updated",
+                message=f"Your welfare status is now {welfare.get_status_display()}.",
+                link="/member-dashboard",
+                send_email=True,
+            )
             messages.success(
                 request,
                 f"Welfare record for {welfare.member.username} marked as {status.replace('_', ' ').title()}."
@@ -659,15 +715,7 @@ class LoanApplicationView(LoginRequiredMixin, CreateView):
     form_class = LoanApplicationForm
     template_name = "core/apply_loan.html"
     success_url = reverse_lazy("member-dashboard")
-    committee_roles = {
-        "chairperson",
-        "treasurer",
-        "secretary",
-        "welfare",
-        "coordinator",
-        "admin",
-        "committee",
-    }
+    committee_roles = COMMITTEE_ROLES
 
     def form_valid(self, form):
         user = self.request.user
@@ -691,6 +739,21 @@ class LoanApplicationView(LoginRequiredMixin, CreateView):
         loan.status = "pending"
         loan.repayment_status = "not_paid"
         loan.save()
+        notify_users(
+            recipients=[user],
+            title="Loan Application Submitted",
+            message=f"Your loan application for Ksh {loan.amount} has been submitted and is pending review.",
+            link="/member-dashboard",
+            send_email=True,
+        )
+        committee_recipients = committee_users().exclude(pk=user.pk)
+        notify_users(
+            recipients=committee_recipients,
+            title="New Loan Application",
+            message=f"{user.get_full_name() or user.username} applied for a loan of Ksh {loan.amount}.",
+            link="/committee-dashboard/",
+            send_email=True,
+        )
 
         messages.success(
             self.request, "Your loan application has been submitted successfully."
@@ -730,6 +793,13 @@ class LoanApprovalUpdateView(LoginRequiredMixin, View):
                 update_fields.append("repayment_status")
 
             loan.save(update_fields=update_fields)
+            notify_users(
+                recipients=[loan.member],
+                title="Loan Application Status Updated",
+                message=f"Your loan application status is now {loan.status.title()}.",
+                link="/member-dashboard",
+                send_email=True,
+            )
             messages.success(
                 request,
                 f"Loan for {loan.member.username} marked as {status.replace('_', ' ').title()}."
@@ -873,6 +943,11 @@ class AnnouncementDetailView(DetailView):
 class MeetingMinutesDetailView(LoginRequiredMixin, View):
     def get(self, request, pk):
         note = get_object_or_404(MeetingNote, pk=pk)
+        if (
+            note.audience == MeetingNote.AUDIENCE_COMMITTEE
+            and request.user.role not in COMMITTEE_ROLES
+        ):
+            return HttpResponseForbidden("You do not have permission to view this meeting note.")
 
         dashboard_url = (
             "member-dashboard" if request.user.role == "member" else "committee-dashboard"
