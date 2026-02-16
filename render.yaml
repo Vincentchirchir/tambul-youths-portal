@@ -1,0 +1,14 @@
+services:
+  - type: cron
+    name: tambul-loan-reminders
+    runtime: python
+    schedule: "0 6 * * *"
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python manage.py send_due_loan_reminders"
+
+  - type: cron
+    name: tambul-weekly-committee-summary
+    runtime: python
+    schedule: "0 6 * * 1"
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python manage.py send_weekly_committee_summary --days 7"
