@@ -1,10 +1,13 @@
 from datetime import timedelta
 
 from django.core.management.base import BaseCommand
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 
 from core.models import Contribution, Loan, LoanReminderLog, Notification, Welfare
 from core.services.notifications import notify_users
+
+User = get_user_model()
 
 
 class Command(BaseCommand):
@@ -34,6 +37,8 @@ class Command(BaseCommand):
         contribution_sent = 0
         welfare_sent = 0
 
+        self._ensure_monthly_contributions(today)
+
         auto_late_loan_updates = list(
             Loan.overdue_unpaid_queryset(today=today)
             .select_related("member")
@@ -58,6 +63,19 @@ class Command(BaseCommand):
                 f"Welfare: {welfare_sent}, Total: {total_sent}"
             )
         )
+
+    def _ensure_monthly_contributions(self, today):
+        month_start = today.replace(day=1)
+        members = User.objects.filter(is_active=True)
+        for member in members:
+            Contribution.objects.get_or_create(
+                member=member,
+                month=month_start,
+                defaults={
+                    "amount": 0,
+                    "status": "not_paid",
+                },
+            )
 
     def _process_loans(self, reference_date):
         loans = Loan.objects.filter(
