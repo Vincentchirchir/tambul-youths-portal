@@ -19,3 +19,10 @@ services:
     schedule: "0 6 * * 1"
     buildCommand: "pip install -r requirements.txt"
     startCommand: "python manage.py send_weekly_committee_summary --days 7"
+
+  - type: cron
+    name: tambul-daily-reminder-backfill
+    runtime: python
+    schedule: "30 6 * * *"
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python manage.py send_due_loan_reminders --backfill-days 1"
