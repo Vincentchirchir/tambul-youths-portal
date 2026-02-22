@@ -94,8 +94,8 @@ class Command(BaseCommand):
 
             if days_until_due < 0:
                 overdue_days = abs(days_until_due)
-                # Send overdue reminders daily for first 3 days, then every 3 days.
-                if overdue_days <= 3 or overdue_days % 3 == 0:
+                # Send overdue reminders daily for first 3 days, then every 2 days.
+                if overdue_days <= 3 or (overdue_days > 3 and (overdue_days - 3) % 2 == 0):
                     sent += self._send_overdue(loan, reference_date, overdue_days)
         return sent
 
@@ -199,7 +199,12 @@ class Command(BaseCommand):
         sent = 0
         for contribution in contributions:
             member = contribution.member
-            if self._already_sent_today(member.pk, "Monthly Contribution Reminder", today):
+            if self._already_sent_within_days(
+                member.pk,
+                "Monthly Contribution Reminder",
+                today,
+                days=2,
+            ):
                 continue
             if today.day <= 10:
                 message = (
@@ -270,7 +275,12 @@ class Command(BaseCommand):
         sent = 0
         for payload in grouped.values():
             member = payload["member"]
-            if self._already_sent_today(member.pk, "Welfare Payment Reminder", today):
+            if self._already_sent_within_days(
+                member.pk,
+                "Welfare Payment Reminder",
+                today,
+                days=2,
+            ):
                 continue
             notify_users(
                 recipients=[member],
@@ -312,4 +322,13 @@ class Command(BaseCommand):
             recipient_id=user_id,
             title=title,
             created_at__date=today,
+        ).exists()
+
+    def _already_sent_within_days(self, user_id, title, today, days):
+        start_date = today - timedelta(days=max(days - 1, 0))
+        return Notification.objects.filter(
+            recipient_id=user_id,
+            title=title,
+            created_at__date__gte=start_date,
+            created_at__date__lte=today,
         ).exists()
