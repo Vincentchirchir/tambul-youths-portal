@@ -677,6 +677,25 @@ body {
 .status--not-yet-paid { background: #f5c6cb; color: #721c24; }
 .status--late { background: #f5c6cb; color: #721c24; }
 
+.paid-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-weight: 600;
+}
+
+.paid-pill--partial {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.paid-pill--full {
+  background: #dcfce7;
+  color: #166534;
+}
+
 .section-header {
   display: flex;
   justify-content: space-between;

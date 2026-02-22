@@ -271,7 +271,13 @@
                   <td>{{ loan.due_date|date:"M d, Y" }}</td>
                   <td>{{ today|date:"M d, Y" }}</td>
                   <td>{{ loan.amount|floatformat:0 }}</td>
-                  <td>{{ loan.total_paid_so_far|floatformat:0 }}</td>
+                  <td>
+                    <span
+                      class="paid-pill{% if loan.total_paid_so_far >= loan.total_balance %} paid-pill--full{% elif loan.total_paid_so_far > 0 %} paid-pill--partial{% endif %}"
+                    >
+                      Ksh {{ loan.total_paid_so_far|floatformat:0 }}
+                    </span>
+                  </td>
                   <td>{{ loan.interest|floatformat:0 }}</td>
 
                   <!-- Approval Status -->
@@ -601,7 +607,11 @@
                     <button type="submit" class="btn btn-small">Save</button>
                   </form>
                   {% else %}
-                  Ksh {{ loan.total_paid_so_far|floatformat:2 }}
+                  <span
+                    class="paid-pill{% if loan.total_paid_so_far >= loan.total_balance %} paid-pill--full{% elif loan.total_paid_so_far > 0 %} paid-pill--partial{% endif %}"
+                  >
+                    Ksh {{ loan.total_paid_so_far|floatformat:2 }}
+                  </span>
                   {% endif %}
                 </td>
                 <td>Ksh {{ loan.current_balance|floatformat:2 }}</td>
