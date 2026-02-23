@@ -42,11 +42,24 @@
           </button>
           <a class="btn btn-primary" href="{% url 'login' %}">Member Login</a>
         </nav>
-        <button class="nav-toggle" aria-label="Toggle navigation">
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
+        <div class="nav-actions">
+          <button
+            type="button"
+            class="install-mobile-btn"
+            id="nav-install-app-mobile"
+            data-install-app
+            hidden
+            aria-label="Install App"
+            title="Install App"
+          >
+            Install App
+          </button>
+          <button class="nav-toggle" aria-label="Toggle navigation">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -116,23 +129,31 @@
         });
       }
 
-      const navInstallButton = document.getElementById("nav-install-app");
+      const navInstallButtons = Array.from(
+        document.querySelectorAll("[data-install-app], #nav-install-app")
+      ).filter(Boolean);
       const isStandaloneMode =
         window.matchMedia("(display-mode: standalone)").matches ||
         window.navigator.standalone === true;
       const isIosDevice = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+      const isSecureInstallContext =
+        window.isSecureContext || ["localhost", "127.0.0.1"].includes(window.location.hostname);
       let deferredInstallPrompt = null;
 
       const toggleInstallButton = (show) => {
-        if (!navInstallButton) return;
-        navInstallButton.hidden = !show;
+        navInstallButtons.forEach((button) => {
+          button.hidden = !show;
+        });
       };
 
-      if (navInstallButton && !isStandaloneMode) {
-        if (isIosDevice) {
-          toggleInstallButton(true);
-          navInstallButton.title = "On iPhone: tap Share, then Add to Home Screen.";
-        }
+      if (navInstallButtons.length && !isStandaloneMode) {
+        toggleInstallButton(true);
+
+        navInstallButtons.forEach((button) => {
+          button.title = isIosDevice
+            ? "On iPhone: tap Share, then Add to Home Screen."
+            : "Install from your browser prompt.";
+        });
 
         window.addEventListener("beforeinstallprompt", (event) => {
           event.preventDefault();
@@ -145,7 +166,7 @@
           toggleInstallButton(false);
         });
 
-        navInstallButton.addEventListener("click", async () => {
+        const handleInstallClick = async () => {
           if (deferredInstallPrompt) {
             deferredInstallPrompt.prompt();
             await deferredInstallPrompt.userChoice;
@@ -155,7 +176,19 @@
 
           if (isIosDevice) {
             window.alert("To install: tap Share, then tap Add to Home Screen.");
+            return;
           }
+
+          if (!isSecureInstallContext) {
+            window.alert("Install requires HTTPS (or localhost).");
+            return;
+          }
+
+          window.alert("If no pop-up appears, open your browser menu and tap Install App or Add to Home Screen.");
+        };
+
+        navInstallButtons.forEach((button) => {
+          button.addEventListener("click", handleInstallClick);
         });
       }
     </script>

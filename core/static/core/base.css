@@ -186,6 +186,28 @@ ul[class],ol[class]{
   cursor:pointer;
 }
 
+.nav-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.install-mobile-btn{
+  display:none;
+  min-width:78px;
+  height:38px;
+  border:none;
+  border-radius:999px;
+  padding:0 14px;
+  background:rgba(27,110,242,.22);
+  color:var(--text);
+  font-weight:700;
+  font-size:.82rem;
+  letter-spacing:.2px;
+  line-height:1.1;
+  cursor:pointer;
+}
+
 .nav-toggle span{
   display:block;
   width:20px;
@@ -414,6 +436,10 @@ ul[class],ol[class]{
   }
   .nav-toggle{
     display:flex;
+  }
+  .install-mobile-btn{
+    display:grid;
+    place-items:center;
   }
 }
 

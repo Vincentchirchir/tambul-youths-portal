@@ -49,12 +49,15 @@ def web_manifest(request):
         "start_url": "/",
         "scope": "/",
         "display": "standalone",
+        "display_override": ["standalone", "minimal-ui", "browser"],
         "background_color": "#041127",
         "theme_color": "#1b6ef2",
         "icons": [
             {
                 "src": static("images/logo.png"),
                 "type": "image/png",
+                "sizes": "640x640",
+                "purpose": "any maskable",
             }
         ],
     }
@@ -71,6 +74,10 @@ def service_worker(request):
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener('fetch', () => {
+  // Online-only app: no offline cache strategy.
 });
 """
     response = HttpResponse(worker_script, content_type="application/javascript")
