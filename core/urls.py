@@ -1,9 +1,11 @@
 from django.contrib import admin
 from django.urls import path
-from .views import Index, MemberDashboardView, CommitteeDashboardView, ExportLoansCSV, ExportLoansPDF, ExportContributionsCSV, ExportContributionsPDF, ExportWelfareCSV, ExportWelfarePDF, LoanRepaymentUpdateView, LoanTotalPaidUpdateView, ContributionStatusUpdateView, ContributionAmountUpdateView, WelfareAmountUpdateView, WelfareStatusUpdateView, LoanApplicationView, LoanApprovalUpdateView, AnnouncementCreateView, PostMeetingNoteView, PostAnnouncementView, ProfileView, EditProfileView, NotificationListView, MarkNotificationReadView, NotificationFetchView, AnnouncementDetailView, MeetingMinutesDetailView
+from .views import Index, MemberDashboardView, CommitteeDashboardView, ExportLoansCSV, ExportLoansPDF, ExportContributionsCSV, ExportContributionsPDF, ExportWelfareCSV, ExportWelfarePDF, LoanRepaymentUpdateView, LoanTotalPaidUpdateView, ContributionStatusUpdateView, ContributionAmountUpdateView, WelfareAmountUpdateView, WelfareStatusUpdateView, LoanApplicationView, LoanApprovalUpdateView, AnnouncementCreateView, PostMeetingNoteView, PostAnnouncementView, ProfileView, EditProfileView, NotificationListView, MarkNotificationReadView, NotificationFetchView, AnnouncementDetailView, MeetingMinutesDetailView, web_manifest, service_worker
 
 
 urlpatterns = [
+    path("manifest.webmanifest", web_manifest, name="web-manifest"),
+    path("service-worker.js", service_worker, name="service-worker"),
     path('', Index.as_view(), name='index'),
     path('member-dashboard', MemberDashboardView.as_view(), name='member-dashboard'),
     path("committee-dashboard/", CommitteeDashboardView.as_view(), name="committee-dashboard"),

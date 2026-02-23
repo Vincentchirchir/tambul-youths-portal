@@ -267,6 +267,13 @@ class Announcement(models.Model):
     title = models.CharField(max_length=200)
     message = models.TextField()
     published_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="announcements_posted",
+    )
     related_name="announcements"
 
     class Meta:

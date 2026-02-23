@@ -254,6 +254,12 @@ ul[class],ol[class]{
   font-size:1.05rem;
 }
 
+.btn-install-nav{
+  height:38px;
+  padding:0 16px;
+  font-size:.86rem;
+}
+
 .link{
   font-weight:600;
   color:var(--accent);
@@ -395,6 +401,10 @@ ul[class],ol[class]{
     width:100%;
     padding:10px 12px;
     border-radius:12px;
+  }
+  .nav-links .btn{
+    width:100%;
+    justify-content:center;
   }
   .nav-links a:hover{
     background:rgba(56,164,255,.18);

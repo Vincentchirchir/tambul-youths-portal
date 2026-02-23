@@ -26,6 +26,7 @@ from django.http import JsonResponse
 from django.core.paginator import Paginator
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from .services.notifications import notify_users, committee_users
+from django.templatetags.static import static
 
 COMMITTEE_ROLES = {
     "chairperson",
@@ -38,6 +39,44 @@ COMMITTEE_ROLES = {
     "admin",
     "committee",
 }
+
+
+def web_manifest(request):
+    manifest = {
+        "name": "Tambul Hustle Youth Group",
+        "short_name": "Tambul Hustle",
+        "description": "Member portal for Tambul Hustle Youth Group.",
+        "start_url": "/",
+        "scope": "/",
+        "display": "standalone",
+        "background_color": "#041127",
+        "theme_color": "#1b6ef2",
+        "icons": [
+            {
+                "src": static("images/logo.png"),
+                "type": "image/png",
+            }
+        ],
+    }
+    return HttpResponse(
+        json.dumps(manifest),
+        content_type="application/manifest+json",
+    )
+
+
+def service_worker(request):
+    worker_script = """self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+"""
+    response = HttpResponse(worker_script, content_type="application/javascript")
+    response["Service-Worker-Allowed"] = "/"
+    response["Cache-Control"] = "no-cache"
+    return response
 
 class Index(TemplateView):
     template_name="core/index.html"
