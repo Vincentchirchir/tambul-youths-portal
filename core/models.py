@@ -99,6 +99,8 @@ class Loan(models.Model):
     
     @property
     def penalty(self):
+        if self.repayment_status == "fully_paid":
+            return Decimal("0.00")
         return self.amount * Decimal("0.10") * self.months_overdue
     
     @property
