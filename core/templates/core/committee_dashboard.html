@@ -135,6 +135,18 @@
             <p>{{ pending_loans }}</p>
           </div>
           <div class="card">
+            <h4>Total Loan Disbursed</h4>
+            <p>Ksh {{ total_loan_disbursed|floatformat:2 }}</p>
+          </div>
+          <div class="card">
+            <h4>Total Loan Repaid</h4>
+            <p>Ksh {{ total_loan_repaid|floatformat:2 }}</p>
+          </div>
+          <div class="card">
+            <h4>Total Loan Outstanding</h4>
+            <p>Ksh {{ total_loan_outstanding|floatformat:2 }}</p>
+          </div>
+          <div class="card">
             <h4>Total Welfare Fund</h4>
             <p>Ksh {{ total_welfare|floatformat:2 }}</p>
           </div>
@@ -905,8 +917,9 @@
           </div>
 
           <div class="chart-box">
-            <h4>Loan Status Distribution</h4>
+            <h4>Loan Repayment Status</h4>
             <canvas id="loanChart"></canvas>
+            <div id="loanChartSummary" class="chart-summary"></div>
           </div>
 
           <div class="chart-box">
@@ -1033,6 +1046,7 @@
         topContributors = [],
         topContribValues = [],
       } = chartData;
+      const loanStatusColors = ["#ffb300", "#e53935", "#00bfa5"];
 
       // Monthly Contributions Trend
       new Chart(document.getElementById("contribChart"), {
@@ -1053,7 +1067,25 @@
         options: { responsive: true, plugins: { legend: { display: false } } },
       });
 
-      // Loan Status Distribution
+      const loanSummary = document.getElementById("loanChartSummary");
+      if (loanSummary) {
+        loanSummary.innerHTML = loanLabels
+          .map((label, index) => {
+            const count = loanCounts[index] ?? 0;
+            return `
+              <div class="chart-summary-item">
+                <span class="chart-summary-label">
+                  <span class="chart-summary-dot" style="background:${loanStatusColors[index]};"></span>
+                  ${label}
+                </span>
+                <strong>${count}</strong>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      // Loan Repayment Status
       new Chart(document.getElementById("loanChart"), {
         type: "doughnut",
         data: {
@@ -1061,7 +1093,7 @@
           datasets: [
             {
               data: loanCounts,
-              backgroundColor: ["#00bfa5", "#ffb300", "#e53935"],
+              backgroundColor: loanStatusColors,
             },
           ],
         },

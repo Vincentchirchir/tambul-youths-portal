@@ -867,6 +867,38 @@ main {
   text-align: center;
 }
 
+.chart-summary {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.chart-summary-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+.chart-summary-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+
+.chart-summary-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 /*  FOOTER  */
 .footer {
   background: #0f172a;

@@ -186,6 +186,16 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         )
         ctx["total_loans"] = Loan.objects.filter(status="approved").count()
         ctx["pending_loans"] = Loan.objects.filter(status="pending").count()
+        approved_loans = Loan.objects.filter(status="approved")
+        ctx["total_loan_disbursed"] = (
+            approved_loans.aggregate(total=Sum("amount"))["total"] or 0
+        )
+        ctx["total_loan_repaid"] = (
+            approved_loans.aggregate(total=Sum("total_paid_so_far"))["total"] or 0
+        )
+        ctx["total_loan_outstanding"] = sum(
+            loan.current_balance() for loan in approved_loans
+        )
         ctx["total_welfare"] = (
             Welfare.objects.filter(
                 status__in=["fully_paid", "partially_paid"]
@@ -275,10 +285,22 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         ctx["monthly_labels"] = [m["month_label"].strftime("%b") for m in monthly]
         ctx["monthly_values"] = [float(m["total"]) for m in monthly]
 
-        # Loan distribution by status
-        loan_stats = Loan.objects.values("status").annotate(count=Count("id"))
-        ctx["loan_labels"] = [l["status"] for l in loan_stats]
-        ctx["loan_counts"] = [l["count"] for l in loan_stats]
+        # Loan repayment distribution for approved loans
+        repayment_order = [
+            ("not_paid", "Not Paid"),
+            ("late", "Late"),
+            ("fully_paid", "Fully Paid"),
+        ]
+        loan_stats = {
+            item["repayment_status"]: item["count"]
+            for item in (
+                Loan.objects.filter(status="approved")
+                .values("repayment_status")
+                .annotate(count=Count("id"))
+            )
+        }
+        ctx["loan_labels"] = [label for _, label in repayment_order]
+        ctx["loan_counts"] = [loan_stats.get(key, 0) for key, _ in repayment_order]
 
         # Welfare totals by status
         welfare_stats = Welfare.objects.values("status").annotate(total=Sum("amount"))
