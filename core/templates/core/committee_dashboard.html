@@ -1057,12 +1057,113 @@
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         })}`;
+      const parseHexColor = (value) => {
+        const color = String(value || "").replace("#", "");
+        if (color.length !== 6) return null;
+        return {
+          r: Number.parseInt(color.slice(0, 2), 16),
+          g: Number.parseInt(color.slice(2, 4), 16),
+          b: Number.parseInt(color.slice(4, 6), 16),
+        };
+      };
+      const darkenColor = (value, factor = 0.78) => {
+        const rgb = parseHexColor(value);
+        if (!rgb) return value;
+        const toHex = (channel) =>
+          Math.max(0, Math.min(255, Math.round(channel * factor)))
+            .toString(16)
+            .padStart(2, "0");
+        return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`;
+      };
+      const createVerticalGradient = (context, area, color) => {
+        if (!area) return color;
+        const gradient = context.createLinearGradient(0, area.top, 0, area.bottom);
+        gradient.addColorStop(0, color);
+        gradient.addColorStop(1, darkenColor(color, 0.72));
+        return gradient;
+      };
       const formatStatusLabel = (value) =>
         String(value || "")
           .split("_")
           .filter(Boolean)
           .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
           .join(" ");
+      const pseudo3DDoughnutPlugin = {
+        id: "pseudo3DDoughnut",
+        beforeDatasetDraw(chart, args, pluginOptions) {
+          if (chart.config.type !== "doughnut" || args.index !== 0) return;
+
+          const meta = chart.getDatasetMeta(args.index);
+          const arcs = meta.data || [];
+          if (!arcs.length) return;
+
+          const ctx = chart.ctx;
+          const depth = pluginOptions?.depth ?? 10;
+          const dataset = chart.data.datasets[args.index];
+          const baseColors = Array.isArray(dataset.borderColor)
+            ? dataset.borderColor
+            : loanStatusColors;
+          const shadowColors = baseColors.map((color) =>
+            darkenColor(color, 0.72)
+          );
+
+          ctx.save();
+          ctx.translate(0, depth);
+          arcs.forEach((arc, index) => {
+            const { x, y, startAngle, endAngle, outerRadius, innerRadius } =
+              arc.getProps(
+                ["x", "y", "startAngle", "endAngle", "outerRadius", "innerRadius"],
+                true
+              );
+
+            ctx.beginPath();
+            ctx.fillStyle = shadowColors[index] || "#334155";
+            ctx.moveTo(
+              x + Math.cos(startAngle) * outerRadius,
+              y + Math.sin(startAngle) * outerRadius
+            );
+            ctx.arc(x, y, outerRadius, startAngle, endAngle);
+            ctx.arc(x, y, innerRadius, endAngle, startAngle, true);
+            ctx.closePath();
+            ctx.fill();
+          });
+          ctx.restore();
+        },
+        afterDatasetsDraw(chart, _args, pluginOptions) {
+          if (chart.config.type !== "doughnut") return;
+
+          const meta = chart.getDatasetMeta(0);
+          const firstArc = meta?.data?.[0];
+          if (!firstArc) return;
+
+          const ctx = chart.ctx;
+          const totalLoans = chart.data.datasets[0].data.reduce(
+            (sum, value) => sum + Number(value || 0),
+            0
+          );
+          const { x, y, innerRadius } = firstArc.getProps(
+            ["x", "y", "innerRadius"],
+            true
+          );
+
+          ctx.save();
+          ctx.fillStyle = pluginOptions?.centerFill ?? "#ffffff";
+          ctx.beginPath();
+          ctx.arc(x, y, innerRadius - 4, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = "#64748b";
+          ctx.font = "600 11px Inter, sans-serif";
+          ctx.fillText("Approved Loans", x, y - 10);
+
+          ctx.fillStyle = "#0f172a";
+          ctx.font = "700 24px Inter, sans-serif";
+          ctx.fillText(String(totalLoans), x, y + 12);
+          ctx.restore();
+        },
+      };
       const renderSummaryTable = ({ container, headers, rows, emptyMessage }) => {
         if (!container) return;
 
@@ -1146,7 +1247,7 @@
         headers: [
           { label: "Status" },
           { label: "Loans", align: "center" },
-          { label: "Amount", align: "right" },
+          { label: "Balance / Paid", align: "right" },
         ],
         rows: loanLabels.map((label, index) => [
           {
@@ -1166,11 +1267,44 @@
           datasets: [
             {
               data: loanCounts,
-              backgroundColor: loanStatusColors,
+              backgroundColor: (context) => {
+                const { chart, dataIndex } = context;
+                const color = loanStatusColors[dataIndex] || "#94a3b8";
+                return createVerticalGradient(
+                  chart.ctx,
+                  chart.chartArea,
+                  color
+                );
+              },
+              borderColor: loanStatusColors,
+              borderWidth: 1.5,
+              hoverOffset: 8,
             },
           ],
         },
-        options: { responsive: true },
+        options: {
+          responsive: true,
+          cutout: "60%",
+          layout: {
+            padding: { top: 10, bottom: 14 },
+          },
+          plugins: {
+            legend: {
+              position: "top",
+              labels: {
+                usePointStyle: true,
+                pointStyle: "circle",
+                boxWidth: 10,
+                padding: 12,
+              },
+            },
+            pseudo3DDoughnut: {
+              depth: 10,
+              centerFill: "#f8fafc",
+            },
+          },
+        },
+        plugins: [pseudo3DDoughnutPlugin],
       });
 
       // Welfare Summary by Status
