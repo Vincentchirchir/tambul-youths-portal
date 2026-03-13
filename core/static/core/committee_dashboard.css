@@ -880,22 +880,72 @@ main {
   text-align: center;
 }
 
-.chart-summary {
-  display: grid;
-  gap: 10px;
+.chart-summary-table-wrap {
   margin-top: 18px;
 }
 
-.chart-summary-item {
+.chart-summary-table-scroll {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.chart-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 280px;
+}
+
+.chart-summary-table thead {
+  background: #e2e8f0;
+}
+
+.chart-summary-table__head,
+.chart-summary-table__cell {
+  padding: 12px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #1e293b;
+}
+
+.chart-summary-table tbody tr:last-child .chart-summary-table__cell {
+  border-bottom: none;
+}
+
+.chart-summary-table__head {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #334155;
+}
+
+.chart-summary-table__cell {
+  font-size: 0.97rem;
+  vertical-align: middle;
+}
+
+.chart-summary-table__head--right,
+.chart-summary-table__cell--right {
+  text-align: right;
+}
+
+.chart-summary-table__head--center,
+.chart-summary-table__cell--center {
+  text-align: center;
+}
+
+.chart-summary-empty {
+  min-height: 72px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
+  justify-content: center;
+  padding: 14px;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  border-radius: 12px;
   background: #f8fafc;
-  color: #1e293b;
+  color: #64748b;
+  text-align: center;
 }
 
 .chart-summary-label {
@@ -903,6 +953,7 @@ main {
   align-items: center;
   gap: 10px;
   font-weight: 600;
+  line-height: 1.25;
 }
 
 .chart-summary-dot {

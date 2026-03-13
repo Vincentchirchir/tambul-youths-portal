@@ -907,29 +907,32 @@
         </div>
       </section>
 
-      <!-- 📈 ANALYTICS -->
+      <!--  ANALYTICS -->
       <section id="analytics" class="tab-section">
         <h3>Analytics Overview</h3>
         <div class="chart-grid">
           <div class="chart-box">
             <h4>Monthly Contributions ({{ this_year }})</h4>
             <canvas id="contribChart"></canvas>
+            <div id="contribChartSummary" class="chart-summary-table-wrap"></div>
           </div>
 
           <div class="chart-box">
             <h4>Loan Repayment Status</h4>
             <canvas id="loanChart"></canvas>
-            <div id="loanChartSummary" class="chart-summary"></div>
+            <div id="loanChartSummary" class="chart-summary-table-wrap"></div>
           </div>
 
           <div class="chart-box">
             <h4>Welfare Summary by Status</h4>
             <canvas id="welfareChart"></canvas>
+            <div id="welfareChartSummary" class="chart-summary-table-wrap"></div>
           </div>
 
           <div class="chart-box">
             <h4>Top 5 Loan Applicants ({{ this_year }})</h4>
             <canvas id="topContribChart"></canvas>
+            <div id="topApplicantsSummary" class="chart-summary-table-wrap"></div>
           </div>
         </div>
       </section>
@@ -1041,12 +1044,68 @@
         monthlyValues = [],
         loanLabels = [],
         loanCounts = [],
+        loanTotals = [],
         welfareLabels = [],
         welfareTotals = [],
         topContributors = [],
         topContribValues = [],
       } = chartData;
-      const loanStatusColors = ["#ffb300", "#e53935", "#00bfa5"];
+      const loanStatusColors = ["#ffb300", "#2563eb", "#e53935", "#00bfa5"];
+      const welfareStatusColors = ["#00bfa5", "#e53935", "#ffb300", "#2563eb"];
+      const formatCurrency = (value) =>
+        `Ksh ${Number(value || 0).toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
+      const formatStatusLabel = (value) =>
+        String(value || "")
+          .split("_")
+          .filter(Boolean)
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join(" ");
+      const renderSummaryTable = ({ container, headers, rows, emptyMessage }) => {
+        if (!container) return;
+
+        if (!rows.length) {
+          container.innerHTML = `
+            <div class="chart-summary-empty">${emptyMessage}</div>
+          `;
+          return;
+        }
+
+        const headerMarkup = headers
+          .map(
+            ({ label, align = "left" }) =>
+              `<th class="chart-summary-table__head chart-summary-table__head--${align}">${label}</th>`
+          )
+          .join("");
+
+        const bodyMarkup = rows
+          .map(
+            (cells) => `
+              <tr>
+                ${cells
+                  .map(
+                    ({ content, align = "left" }) =>
+                      `<td class="chart-summary-table__cell chart-summary-table__cell--${align}">${content}</td>`
+                  )
+                  .join("")}
+              </tr>
+            `
+          )
+          .join("");
+
+        container.innerHTML = `
+          <div class="chart-summary-table-scroll">
+            <table class="chart-summary-table">
+              <thead>
+                <tr>${headerMarkup}</tr>
+              </thead>
+              <tbody>${bodyMarkup}</tbody>
+            </table>
+          </div>
+        `;
+      };
 
       // Monthly Contributions Trend
       new Chart(document.getElementById("contribChart"), {
@@ -1067,23 +1126,37 @@
         options: { responsive: true, plugins: { legend: { display: false } } },
       });
 
+      const contribSummary = document.getElementById("contribChartSummary");
+      renderSummaryTable({
+        container: contribSummary,
+        headers: [
+          { label: "Month" },
+          { label: "Total Contribution", align: "right" },
+        ],
+        rows: monthlyLabels.map((label, index) => [
+          { content: label },
+          { content: formatCurrency(monthlyValues[index] ?? 0), align: "right" },
+        ]),
+        emptyMessage: "No contribution data available for {{ this_year }} yet.",
+      });
+
       const loanSummary = document.getElementById("loanChartSummary");
-      if (loanSummary) {
-        loanSummary.innerHTML = loanLabels
-          .map((label, index) => {
-            const count = loanCounts[index] ?? 0;
-            return `
-              <div class="chart-summary-item">
-                <span class="chart-summary-label">
-                  <span class="chart-summary-dot" style="background:${loanStatusColors[index]};"></span>
-                  ${label}
-                </span>
-                <strong>${count}</strong>
-              </div>
-            `;
-          })
-          .join("");
-      }
+      renderSummaryTable({
+        container: loanSummary,
+        headers: [
+          { label: "Status" },
+          { label: "Loans", align: "center" },
+          { label: "Amount", align: "right" },
+        ],
+        rows: loanLabels.map((label, index) => [
+          {
+            content: `<span class="chart-summary-label"><span class="chart-summary-dot" style="background:${loanStatusColors[index]};"></span>${label}</span>`,
+          },
+          { content: String(loanCounts[index] ?? 0), align: "center" },
+          { content: formatCurrency(loanTotals[index] ?? 0), align: "right" },
+        ]),
+        emptyMessage: "No approved loan repayment data available yet.",
+      });
 
       // Loan Repayment Status
       new Chart(document.getElementById("loanChart"), {
@@ -1109,7 +1182,7 @@
             {
               label: "Welfare (Ksh)",
               data: welfareTotals,
-              backgroundColor: ["#00bfa5", "#e53935", "#ffb300"],
+              backgroundColor: welfareStatusColors,
             },
           ],
         },
@@ -1118,6 +1191,22 @@
           indexAxis: "y",
           plugins: { legend: { display: false } },
         },
+      });
+
+      const welfareSummary = document.getElementById("welfareChartSummary");
+      renderSummaryTable({
+        container: welfareSummary,
+        headers: [
+          { label: "Status" },
+          { label: "Total Welfare", align: "right" },
+        ],
+        rows: welfareLabels.map((label, index) => [
+          {
+            content: `<span class="chart-summary-label"><span class="chart-summary-dot" style="background:${welfareStatusColors[index % welfareStatusColors.length]};"></span>${formatStatusLabel(label)}</span>`,
+          },
+          { content: formatCurrency(welfareTotals[index] ?? 0), align: "right" },
+        ]),
+        emptyMessage: "No welfare data available yet.",
       });
 
       // Top 5 Contributors
@@ -1134,6 +1223,20 @@
           ],
         },
         options: { responsive: true, plugins: { legend: { display: false } } },
+      });
+
+      const topApplicantsSummary = document.getElementById("topApplicantsSummary");
+      renderSummaryTable({
+        container: topApplicantsSummary,
+        headers: [
+          { label: "Member" },
+          { label: "Loan Amount", align: "right" },
+        ],
+        rows: topContributors.map((name, index) => [
+          { content: name },
+          { content: formatCurrency(topContribValues[index] ?? 0), align: "right" },
+        ]),
+        emptyMessage: "No loan applications recorded for {{ this_year }} yet.",
       });
     </script>
     <script>

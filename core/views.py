@@ -288,19 +288,31 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         # Loan repayment distribution for approved loans
         repayment_order = [
             ("not_paid", "Not Paid"),
+            ("partially_paid", "Partially Paid"),
             ("late", "Late"),
             ("fully_paid", "Fully Paid"),
         ]
+        approved_loans_for_analytics = Loan.objects.filter(status="approved")
         loan_stats = {
-            item["repayment_status"]: item["count"]
-            for item in (
-                Loan.objects.filter(status="approved")
-                .values("repayment_status")
-                .annotate(count=Count("id"))
-            )
+            key: {"count": 0, "total": 0.0}
+            for key, _ in repayment_order
         }
+
+        for loan in approved_loans_for_analytics:
+            status_key = loan.repayment_status
+            if status_key not in loan_stats:
+                continue
+
+            loan_stats[status_key]["count"] += 1
+            if status_key == "fully_paid":
+                figure = float(loan.total_paid_so_far or 0)
+            else:
+                figure = float(loan.current_balance() or 0)
+            loan_stats[status_key]["total"] += figure
+
         ctx["loan_labels"] = [label for _, label in repayment_order]
-        ctx["loan_counts"] = [loan_stats.get(key, 0) for key, _ in repayment_order]
+        ctx["loan_counts"] = [loan_stats.get(key, {}).get("count", 0) for key, _ in repayment_order]
+        ctx["loan_totals"] = [loan_stats.get(key, {}).get("total", 0) for key, _ in repayment_order]
 
         # Welfare totals by status
         welfare_stats = Welfare.objects.values("status").annotate(total=Sum("amount"))
@@ -329,6 +341,7 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
             "monthlyValues": ctx["monthly_values"],
             "loanLabels": ctx["loan_labels"],
             "loanCounts": ctx["loan_counts"],
+            "loanTotals": ctx["loan_totals"],
             "welfareLabels": ctx["welfare_labels"],
             "welfareTotals": ctx["welfare_totals"],
             "topContributors": ctx["top_contributors"],
