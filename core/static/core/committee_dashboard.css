@@ -93,6 +93,20 @@ body {
   border-radius: 999px;
 }
 
+.year-filter {
+  margin: 0;
+}
+
+.year-filter .year {
+  border: 1px solid rgba(226, 232, 240, 0.22);
+  color: #f8fafc;
+  cursor: pointer;
+}
+
+.year-filter .year option {
+  color: #0f172a;
+}
+
 .flash-messages {
   width: min(720px, 92%);
   margin: 16px auto 0;
@@ -589,6 +603,16 @@ main {
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+.loan-date-input {
+  width: 132px;
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 0.85rem;
 }
 
 .loan-repaid-form .btn-small {
@@ -1306,6 +1330,32 @@ main {
   display: flex;
   flex-direction: column;
   padding: 4px 0 8px;
+}
+
+.notif-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 20px 8px;
+  border-bottom: 1px solid #e2e9f5;
+}
+
+.mark-all-read {
+  border: 0;
+  background: transparent;
+  color: #1d4ed8;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 4px 0;
+}
+
+.mark-all-read:hover {
+  color: #0f3b9f;
+}
+
+.mark-all-read:disabled {
+  cursor: default;
+  opacity: 0.55;
 }
 
 .notif-item {

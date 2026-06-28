@@ -1,11 +1,12 @@
 from django.views.generic import TemplateView, CreateView, ListView, View, DetailView
 from django.views.generic.edit import FormView, UpdateView
 from django.urls import reverse_lazy, reverse
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
+from django.db import transaction
 from django.db.models import Sum, F, ExpressionWrapper, DecimalField, Case, When, Value, Count
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from.models import Contribution, Loan, Welfare, Announcement, MeetingNote, Notification
+from.models import Contribution, Loan, LoanPayment, Welfare, Announcement, MeetingNote, Notification
 from .forms import ContributionForm, LoanApplicationForm, AnnouncementForm, MeetingNoteForm
 from django.shortcuts import render, redirect, get_object_or_404
 import requests
@@ -16,7 +17,7 @@ from django.db.models.functions import TruncMonth
 import csv
 from django .contrib import messages
 from django.http import HttpResponse, HttpResponseForbidden
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfgen import canvas
 from django.contrib.staticfiles import finders
 from reportlab.lib.utils import ImageReader
@@ -39,6 +40,49 @@ COMMITTEE_ROLES = {
     "admin",
     "committee",
 }
+
+
+def dashboard_year_options():
+    current_year = timezone.localdate().year
+    years = {current_year}
+    date_sources = (
+        (Contribution.objects, "month"),
+        (Loan.objects, "loan_date"),
+        (LoanPayment.objects, "payment_date"),
+        (Welfare.objects, "date_given"),
+    )
+
+    for queryset, field_name in date_sources:
+        years.update(value.year for value in queryset.dates(field_name, "year"))
+
+    return sorted(years, reverse=True)
+
+
+def selected_dashboard_year(request):
+    current_year = timezone.localdate().year
+    available_years = dashboard_year_options()
+    raw_year = request.GET.get("year")
+
+    try:
+        year = int(raw_year) if raw_year else current_year
+    except (TypeError, ValueError):
+        year = current_year
+
+    if year not in available_years:
+        available_years = sorted({*available_years, year}, reverse=True)
+
+    return year, available_years
+
+
+def dashboard_period_bounds(year):
+    period_start = date(year, 1, 1)
+    period_end = date(year, 12, 31)
+    today = timezone.localdate()
+
+    if year == today.year:
+        period_end = today
+
+    return period_start, period_end
 
 
 def web_manifest(request):
@@ -93,7 +137,7 @@ class MemberDashboardView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx=super().get_context_data(**kwargs)
         user=self.request.user
-        year=date.today().year
+        year, available_years = selected_dashboard_year(self.request)
 
         ctx["unread_notifications"] = user.notifications.filter(is_read=False).count()
 
@@ -133,7 +177,7 @@ class MemberDashboardView(LoginRequiredMixin, TemplateView):
 
 
         ctx["recent_contributions"]=(
-            Contribution.objects.filter(member=user)
+            Contribution.objects.filter(member=user, month__year=year)
             .order_by("-month", "-created_at")[:12]
         )
 
@@ -157,6 +201,8 @@ class MemberDashboardView(LoginRequiredMixin, TemplateView):
 
 
         ctx["this_year"]=year
+        ctx["selected_year"]=year
+        ctx["available_years"]=available_years
         return ctx
 
 class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
@@ -169,13 +215,28 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
     # Context Data
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        year = date.today().year
+        year, available_years = selected_dashboard_year(self.request)
+        period_start, period_end = dashboard_period_bounds(year)
         user = self.request.user
         ctx["user_display_name"] = user.first_name or user.username
         ctx["unread_notifications"] = user.notifications.filter(is_read=False).count()
 
         #  1️ OVERVIEW PART
         ctx["total_members"] = User.objects.exclude(role="admin").count()
+        approved_loans = Loan.objects.filter(status="approved")
+        approved_loans_this_year = approved_loans.filter(loan_date__year=year)
+        payments_this_year = (
+            LoanPayment.objects.filter(loan__status="approved", payment_date__year=year)
+            .aggregate(total=Sum("amount"))["total"]
+            or 0
+        )
+        opening_balance_as_of = period_start - timedelta(days=1)
+        ctx["opening_loan_balance"] = sum(
+            loan.balance_as_of(opening_balance_as_of) for loan in approved_loans
+        )
+        ctx["closing_loan_balance"] = sum(
+            loan.balance_as_of(period_end) for loan in approved_loans
+        )
         ctx["total_contributions"] = (
             Contribution.objects.filter(
                 month__year=year,
@@ -184,20 +245,16 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
             .aggregate(total=Sum("amount"))["total"]
             or 0
         )
-        ctx["total_loans"] = Loan.objects.filter(status="approved").count()
-        ctx["pending_loans"] = Loan.objects.filter(status="pending").count()
-        approved_loans = Loan.objects.filter(status="approved")
+        ctx["total_loans"] = approved_loans_this_year.count()
+        ctx["pending_loans"] = Loan.objects.filter(status="pending", loan_date__year=year).count()
         ctx["total_loan_disbursed"] = (
-            approved_loans.aggregate(total=Sum("amount"))["total"] or 0
+            approved_loans_this_year.aggregate(total=Sum("amount"))["total"] or 0
         )
-        ctx["total_loan_repaid"] = (
-            approved_loans.aggregate(total=Sum("total_paid_so_far"))["total"] or 0
-        )
-        ctx["total_loan_outstanding"] = sum(
-            loan.current_balance() for loan in approved_loans
-        )
+        ctx["total_loan_repaid"] = payments_this_year
+        ctx["total_loan_outstanding"] = ctx["closing_loan_balance"]
         ctx["total_welfare"] = (
             Welfare.objects.filter(
+                date_given__year=year,
                 status__in=["fully_paid", "partially_paid"]
             )
             .aggregate(total=Sum("amount"))["total"]
@@ -315,7 +372,11 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         ctx["loan_totals"] = [loan_stats.get(key, {}).get("total", 0) for key, _ in repayment_order]
 
         # Welfare totals by status
-        welfare_stats = Welfare.objects.values("status").annotate(total=Sum("amount"))
+        welfare_stats = (
+            Welfare.objects.filter(date_given__year=year)
+            .values("status")
+            .annotate(total=Sum("amount"))
+        )
         ctx["welfare_labels"] = [w["status"] for w in welfare_stats]
         ctx["welfare_totals"] = [float(w["total"]) for w in welfare_stats]
         #Meeting Reports
@@ -323,11 +384,15 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
 
         # 5️ YEAR & DATE INFO
         ctx["this_year"] = year
+        ctx["selected_year"] = year
+        ctx["available_years"] = available_years
+        ctx["period_start"] = period_start
+        ctx["period_end"] = period_end
         ctx["today"] = date.today()
 
-        # Top 5 members by total loan amount applied this year
+        # Top 5 members by approved loan amount this year
         top_borrowers = (
-            Loan.objects.filter(loan_date__year=year)
+            Loan.objects.filter(loan_date__year=year, status="approved")
             .values("member__username")
             .annotate(total=Sum("amount"))
             .order_by("-total")[:5]
@@ -520,16 +585,30 @@ class ExportLoansCSV(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         response = HttpResponse(content_type="text/csv")
         response["Content-Disposition"] = 'attachment; filename="loans.csv"'
         writer = csv.writer(response)
-        writer.writerow(["Member", "Amount (Ksh)", "Total Paid (Ksh)", "Status", "Loan Date", "Due Date"])
+        writer.writerow([
+            "Member",
+            "Amount (Ksh)",
+            "Total Paid (Ksh)",
+            "Balance (Ksh)",
+            "Approval Status",
+            "Loan Date",
+            "Due Date",
+            "Repayment Status",
+            "Updated On",
+        ])
 
         for loan in Loan.objects.all().order_by("-created_at"):
+            member_name = loan.member.get_full_name() or loan.member.username
             writer.writerow([
-                loan.member.username,
+                member_name,
                 float(loan.amount),
                 float(loan.total_paid_so_far),
-                loan.status.capitalize(),
+                float(loan.current_balance()),
+                loan.get_status_display(),
                 loan.loan_date.strftime("%Y-%m-%d") if loan.loan_date else "",
-                loan.due_date.strftime("%Y-%m-%d") if loan.due_date else ""
+                loan.due_date.strftime("%Y-%m-%d") if loan.due_date else "",
+                loan.get_repayment_status_display(),
+                loan.repayment_updated_at.strftime("%Y-%m-%d") if loan.repayment_updated_at else "",
             ])
         return response
 
@@ -542,8 +621,8 @@ class ExportLoansPDF(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     def get(self, request, *args, **kwargs):
         response = HttpResponse(content_type="application/pdf")
         response["Content-Disposition"] = 'attachment; filename="Loans_Report.pdf"'
-        p = canvas.Canvas(response, pagesize=A4)
-        width, height = A4
+        p = canvas.Canvas(response, pagesize=landscape(A4))
+        width, height = landscape(A4)
 
         #HEADER BRANDING
         logo_path = finders.find("images/logo.png")
@@ -560,26 +639,34 @@ class ExportLoansPDF(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
         # TABLE HEADERS
         y = height - 130
-        p.setFont("Helvetica-Bold", 10)
-        p.drawString(50, y, "Member")
-        p.drawString(165, y, "Amount")
-        p.drawString(235, y, "Total Paid")
-        p.drawString(305, y, "Status")
-        p.drawString(380, y, "Loan Date")
-        p.drawString(460, y, "Due Date")
+        p.setFont("Helvetica-Bold", 8)
+        p.drawString(35, y, "Member")
+        p.drawString(140, y, "Amount")
+        p.drawString(205, y, "Total Paid")
+        p.drawString(280, y, "Balance")
+        p.drawString(350, y, "Approval")
+        p.drawString(425, y, "Loan Date")
+        p.drawString(500, y, "Due Date")
+        p.drawString(575, y, "Repayment")
+        p.drawString(670, y, "Updated On")
         y -= 20
 
         #DATA ROWS
-        p.setFont("Helvetica", 9)
+        p.setFont("Helvetica", 8)
         for loan in Loan.objects.all().order_by("-created_at"):
-            p.drawString(50, y, loan.member.username)
-            p.drawString(165, y, f"{float(loan.amount):,.2f}")
-            p.drawString(235, y, f"{float(loan.total_paid_so_far):,.2f}")
-            p.drawString(305, y, loan.status.capitalize())
+            member_name = loan.member.get_full_name() or loan.member.username
+            p.drawString(35, y, member_name[:22])
+            p.drawString(140, y, f"{float(loan.amount):,.2f}")
+            p.drawString(205, y, f"{float(loan.total_paid_so_far):,.2f}")
+            p.drawString(280, y, f"{float(loan.current_balance()):,.2f}")
+            p.drawString(350, y, loan.get_status_display())
             if loan.loan_date:
-                p.drawString(380, y, loan.loan_date.strftime("%Y-%m-%d"))
+                p.drawString(425, y, loan.loan_date.strftime("%Y-%m-%d"))
             if loan.due_date:
-                p.drawString(460, y, loan.due_date.strftime("%Y-%m-%d"))
+                p.drawString(500, y, loan.due_date.strftime("%Y-%m-%d"))
+            p.drawString(575, y, loan.get_repayment_status_display())
+            if loan.repayment_updated_at:
+                p.drawString(670, y, loan.repayment_updated_at.strftime("%Y-%m-%d"))
             y -= 15
             if y < 50:
                 p.showPage()
@@ -626,11 +713,22 @@ class LoanTotalPaidUpdateView(LoginRequiredMixin, View):
 
         loan = get_object_or_404(Loan, pk=pk)
         raw_amount = request.POST.get("total_paid_so_far", "").strip()
+        raw_payment_date = request.POST.get("payment_date", "").strip()
 
         try:
             amount_repaid = Decimal(raw_amount)
         except (InvalidOperation, TypeError):
             messages.warning(request, "Enter a valid total paid amount.")
+            return redirect("committee-dashboard")
+
+        try:
+            payment_date = date.fromisoformat(raw_payment_date) if raw_payment_date else timezone.localdate()
+        except ValueError:
+            messages.warning(request, "Enter a valid payment date.")
+            return redirect("committee-dashboard")
+
+        if payment_date > timezone.localdate():
+            messages.warning(request, "Payment date cannot be in the future.")
             return redirect("committee-dashboard")
 
         if amount_repaid < 0:
@@ -642,16 +740,42 @@ class LoanTotalPaidUpdateView(LoginRequiredMixin, View):
             messages.warning(request, "Total paid cannot exceed the total balance.")
             return redirect("committee-dashboard")
 
-        loan.total_paid_so_far = amount_repaid
-        if amount_repaid == 0:
-            loan.repayment_status = "not_paid"
-        elif amount_repaid < total_balance:
-            loan.repayment_status = "partially_paid"
-        else:
-            loan.repayment_status = "fully_paid"
+        previous_total = loan.total_paid_so_far or Decimal("0.00")
+        payment_amount = amount_repaid - previous_total
 
-        loan.repayment_updated_at = timezone.now()
-        loan.save(update_fields=["total_paid_so_far", "repayment_status", "repayment_updated_at"])
+        if payment_amount < 0:
+            messages.warning(
+                request,
+                "Total paid cannot be less than the recorded payment history.",
+            )
+            return redirect("committee-dashboard")
+
+        with transaction.atomic():
+            if payment_amount > 0:
+                LoanPayment.objects.create(
+                    loan=loan,
+                    amount=payment_amount,
+                    payment_date=payment_date,
+                    recorded_by=request.user,
+                )
+
+            loan.total_paid_so_far = amount_repaid
+            if amount_repaid == 0:
+                loan.repayment_status = "not_paid"
+            elif amount_repaid < total_balance:
+                loan.repayment_status = "partially_paid"
+            else:
+                loan.repayment_status = "fully_paid"
+
+            loan.repayment_updated_at = payment_date
+            loan.save(update_fields=["total_paid_so_far", "repayment_status", "repayment_updated_at"])
+
+        if payment_amount > 0:
+            message = f"Payment of Ksh {payment_amount} recorded for {loan.member.username}."
+        else:
+            message = f"Total paid unchanged for {loan.member.username}."
+
+        messages.success(request, message)
         notify_users(
             recipients=[loan.member],
             title="Loan Payment Updated",
@@ -662,7 +786,6 @@ class LoanTotalPaidUpdateView(LoginRequiredMixin, View):
             link="/member-dashboard",
             send_email=True,
         )
-        messages.success(request, f"Total paid updated for {loan.member.username}.")
         return redirect("committee-dashboard")
 
 class ContributionStatusUpdateView(LoginRequiredMixin, View):
@@ -975,12 +1098,29 @@ class NotificationListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         return self.request.user.notifications.all()
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["unread_notifications"] = self.request.user.notifications.filter(is_read=False).count()
+        return ctx
+
 class MarkNotificationReadView(LoginRequiredMixin, View):
     def get(self, request, pk):
         notif = get_object_or_404(Notification, pk=pk, recipient=request.user)
         notif.is_read = True
         notif.save()
         return redirect(notif.link or "notifications")
+
+class MarkAllNotificationsReadView(LoginRequiredMixin, View):
+    def post(self, request):
+        updated = request.user.notifications.filter(is_read=False).update(is_read=True)
+
+        if request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JsonResponse({
+                "updated": updated,
+                "unread_count": 0,
+            })
+
+        return redirect(request.META.get("HTTP_REFERER") or reverse("notifications"))
 
 class NotificationFetchView(LoginRequiredMixin, View):
     PAGE_SIZE = 10

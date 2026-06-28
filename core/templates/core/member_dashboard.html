@@ -37,11 +37,24 @@
             </span>
           </button>
           <div id="notif-panel" class="notif-panel hidden">
+            <div class="notif-panel-actions">
+              <button id="mark-all-read" class="mark-all-read" type="button" hidden>
+                Mark all read
+              </button>
+            </div>
             <div id="notif-list"></div>
             <button id="load-more" class="load-more" hidden>Load More</button>
           </div>
         </div>
-        <span class="year">{{ this_year }}</span>
+        <form class="year-filter" method="get">
+          <select class="year" name="year" onchange="this.form.submit()" aria-label="Dashboard year">
+            {% for year in available_years %}
+            <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>
+              {{ year }}
+            </option>
+            {% endfor %}
+          </select>
+        </form>
         <div class="profile-dropdown">
           <button class="profile-toggle">
             <span class="profile-icon">
@@ -497,8 +510,11 @@
   const notifList = document.getElementById("notif-list");
   const badge = document.getElementById("notif-count");
   const loadMoreBtn = document.getElementById("load-more");
+  const markAllReadBtn = document.getElementById("mark-all-read");
   const profileToggle = document.querySelector(".profile-toggle");
   const profileMenu = document.querySelector(".profile-menu");
+  const markAllReadUrl = "{% url 'mark_notifications_read_all' %}";
+  const csrfToken = "{{ csrf_token }}";
   let nextPage = 1;
 
   const openNotifPanel = () => {
@@ -587,6 +603,7 @@
         }
 
         updateBadge(data.unread_count || 0);
+        if (markAllReadBtn) markAllReadBtn.hidden = !(data.unread_count > 0);
       })
       .catch(() => {
         notifList.innerHTML = `<div class="notif-empty">Unable to load notifications</div>`;
@@ -617,6 +634,40 @@
   loadMoreBtn.addEventListener("click", () => {
     if (nextPage) loadNotifications(false);
   });
+
+  if (markAllReadBtn) {
+    markAllReadBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      markAllReadBtn.disabled = true;
+
+      fetch(markAllReadUrl, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": csrfToken,
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error("Unable to mark notifications read");
+          return res.json();
+        })
+        .then((data) => {
+          notifList.querySelectorAll(".notif-item").forEach((item) => {
+            item.classList.add("notif-item--read");
+          });
+          updateBadge(data.unread_count || 0);
+          markAllReadBtn.hidden = true;
+          nextPage = 1;
+          loadNotifications(true);
+        })
+        .catch(() => {
+          markAllReadBtn.disabled = false;
+        })
+        .finally(() => {
+          markAllReadBtn.disabled = false;
+        });
+    });
+  }
 
   // --- Click: mark read & open link ---
   notifList.addEventListener("click", (event) => {

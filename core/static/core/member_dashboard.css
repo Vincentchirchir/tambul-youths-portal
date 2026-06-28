@@ -284,6 +284,20 @@ body {
   border-radius: 999px;
 }
 
+.year-filter {
+  margin: 0;
+}
+
+.year-filter .year {
+  border: 1px solid rgba(226, 232, 240, 0.22);
+  color: #f8fafc;
+  cursor: pointer;
+}
+
+.year-filter .year option {
+  color: #0f172a;
+}
+
 .notif-container {
   position: relative;
   display: inline-block;
@@ -416,6 +430,32 @@ body {
   display: flex;
   flex-direction: column;
   padding: 4px 0 8px;
+}
+
+.notif-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 20px 8px;
+  border-bottom: 1px solid #e2e9f5;
+}
+
+.mark-all-read {
+  border: 0;
+  background: transparent;
+  color: #1d4ed8;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 4px 0;
+}
+
+.mark-all-read:hover {
+  color: #0f3b9f;
+}
+
+.mark-all-read:disabled {
+  cursor: default;
+  opacity: 0.55;
 }
 
 /* ===== Items ===== */

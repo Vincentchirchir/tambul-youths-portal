@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Contribution, Loan, Welfare, MeetingNote, Announcement, Notification, LoanReminderLog
+from .models import Contribution, Loan, LoanPayment, Welfare, MeetingNote, Announcement, Notification, LoanReminderLog
 
 @admin.register(Contribution)
 class ContributionAdmin(admin.ModelAdmin):
@@ -12,6 +12,13 @@ class LoanAdmin(admin.ModelAdmin):
     list_display = ("member", "amount", "interest", "status", "created_at")
     search_fields = ("member__email", "member__first_name", "member__last_name")
     list_filter = ("status", "created_at")
+
+
+@admin.register(LoanPayment)
+class LoanPaymentAdmin(admin.ModelAdmin):
+    list_display = ("loan", "amount", "payment_date", "recorded_by", "created_at")
+    search_fields = ("loan__member__email", "loan__member__first_name", "loan__member__last_name")
+    list_filter = ("payment_date", "created_at")
 
 @admin.register(Welfare)
 class WelfareAdmin(admin.ModelAdmin):

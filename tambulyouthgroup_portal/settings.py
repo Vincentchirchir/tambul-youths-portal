@@ -41,14 +41,14 @@ DEBUG = ENVIRONMENT != "production"
 if ENVIRONMENT == "development":
     ALLOWED_HOSTS = ["localhost", "127.0.0.1", "172.29.89.229"]
 else:
-    ALLOWED_HOSTS = ["tambulyouths.onrender.com"]
+    ALLOWED_HOSTS = ["tambulyouths.onrender.com","tambul.org", "www.tambul.org",]
 
 
 CSRF_TRUSTED_ORIGINS = [
     "https://tambulyouths.onrender.com",
+    "https://tambul.org",
+    "https://www.tambul.org",
 ]
-
-
 
 # Application definition
 

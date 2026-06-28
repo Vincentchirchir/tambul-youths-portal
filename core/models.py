@@ -57,6 +57,7 @@ class Loan(models.Model):
             previous = Loan.objects.filter(pk=self.pk).values(
                 "total_paid_so_far",
                 "repayment_status",
+                "repayment_updated_at",
             ).first()
 
         total_balance = self.amount + self.interest + self.penalty
@@ -82,9 +83,14 @@ class Loan(models.Model):
         else:
             self.repayment_status = derived_status
 
-        if not previous or (
+        payment_changed = not previous or (
             previous["total_paid_so_far"] != self.total_paid_so_far
             or previous["repayment_status"] != self.repayment_status
+        )
+        if payment_changed and (
+            not previous
+            or not self.repayment_updated_at
+            or self.repayment_updated_at == previous["repayment_updated_at"]
         ):
             self.repayment_updated_at = date.today()
         super().save(*args, **kwargs)
@@ -96,19 +102,68 @@ class Loan(models.Model):
             diff=relativedelta(today, self.due_date)
             return diff.months + (diff.years*12)
         return 0
+
+    def months_overdue_as_of(self, as_of):
+        if self.due_date and as_of > self.due_date:
+            diff = relativedelta(as_of, self.due_date)
+            return diff.months + (diff.years * 12)
+        return 0
     
     @property
     def penalty(self):
         if self.repayment_status == "fully_paid":
             return Decimal("0.00")
         return self.amount * Decimal("0.10") * self.months_overdue
+
+    def penalty_as_of(self, as_of):
+        return self.amount * Decimal("0.10") * self.months_overdue_as_of(as_of)
     
     @property
     def total_balance(self):
         return self.amount + self.interest + self.penalty
+
+    def total_balance_as_of(self, as_of):
+        return self.amount + self.interest + self.penalty_as_of(as_of)
+
+    def amount_paid_as_of(self, as_of):
+        if not self.pk:
+            return Decimal("0.00")
+
+        return (
+            self.payments.filter(payment_date__lte=as_of)
+            .aggregate(total=models.Sum("amount"))["total"]
+            or Decimal("0.00")
+        )
+
+    def paid_off_date_as_of(self, as_of):
+        if not self.pk:
+            return None
+
+        paid = Decimal("0.00")
+        payments = self.payments.filter(payment_date__lte=as_of).order_by(
+            "payment_date",
+            "created_at",
+            "pk",
+        )
+        for payment in payments:
+            paid += payment.amount
+            if paid >= self.total_balance_as_of(payment.payment_date):
+                return payment.payment_date
+
+        return None
     
     def current_balance(self):
         remaining = self.total_balance - self.total_paid_so_far
+        return remaining if remaining > 0 else Decimal("0.00")
+
+    def balance_as_of(self, as_of):
+        if self.status != "approved" or not self.loan_date or self.loan_date > as_of:
+            return Decimal("0.00")
+
+        if self.paid_off_date_as_of(as_of):
+            return Decimal("0.00")
+
+        remaining = self.total_balance_as_of(as_of) - self.amount_paid_as_of(as_of)
         return remaining if remaining > 0 else Decimal("0.00")
 
     class Meta:
@@ -121,6 +176,31 @@ class Loan(models.Model):
 
     def __str__(self):
         return f"{self.member} - {self.amount}"
+
+
+class LoanPayment(models.Model):
+    loan = models.ForeignKey(Loan, on_delete=models.CASCADE, related_name="payments")
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_date = models.DateField(default=timezone.localdate)
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="loan_payments_recorded",
+        blank=True,
+        null=True,
+    )
+    note = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-payment_date", "-created_at"]
+        indexes = [
+            models.Index(fields=["payment_date"]),
+            models.Index(fields=["loan", "payment_date"]),
+        ]
+
+    def __str__(self):
+        return f"{self.loan} payment {self.amount} on {self.payment_date}"
 
 class Contribution(models.Model):
     member=models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="contributions")

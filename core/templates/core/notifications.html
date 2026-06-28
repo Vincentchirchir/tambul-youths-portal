@@ -1,7 +1,15 @@
 {% extends 'core/base.html' %}
 {% block content %}
 <section class="notifications">
-  <h2>Notifications</h2>
+  <div class="notifications-header">
+    <h2>Notifications</h2>
+    {% if unread_notifications %}
+      <form method="post" action="{% url 'mark_notifications_read_all' %}">
+        {% csrf_token %}
+        <button type="submit">Mark all read</button>
+      </form>
+    {% endif %}
+  </div>
   {% for n in notifications %}
     <div class="notif {% if not n.is_read %}unread{% endif %}">
       <h4>{{ n.title }}</h4>
