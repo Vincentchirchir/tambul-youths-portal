@@ -56,12 +56,20 @@
             </div>
           </div>
 
-          <!-- Year -->
+          <!-- Period filter -->
           <form class="year-filter" method="get">
             <select class="year" name="year" onchange="this.form.submit()" aria-label="Dashboard year">
               {% for year in available_years %}
               <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>
                 {{ year }}
+              </option>
+              {% endfor %}
+            </select>
+            <select class="year" name="month" onchange="this.form.submit()" aria-label="Dashboard month">
+              <option value="" {% if not selected_month %}selected{% endif %}>All months</option>
+              {% for month in month_options %}
+              <option value="{{ month.value }}" {% if month.value == selected_month %}selected{% endif %}>
+                {{ month.label }}
               </option>
               {% endfor %}
             </select>
@@ -136,7 +144,7 @@
             <p>{{ total_members }}</p>
           </div>
           <div class="card">
-            <h4>Total Contributions ({{ this_year }})</h4>
+            <h4>Total Contributions ({{ period_label }})</h4>
             <p>Ksh {{ total_contributions|floatformat:2 }}</p>
           </div>
           <div class="card">
@@ -152,15 +160,11 @@
             <p>Ksh {{ total_loan_disbursed|floatformat:2 }}</p>
           </div>
           <div class="card">
-            <h4>Opening Loan Balance</h4>
-            <p>Ksh {{ opening_loan_balance|floatformat:2 }}</p>
-          </div>
-          <div class="card">
             <h4>Total Loan Repaid</h4>
             <p>Ksh {{ total_loan_repaid|floatformat:2 }}</p>
           </div>
           <div class="card">
-            <h4>Closing Loan Balance</h4>
+            <h4>Total Loan Outstanding</h4>
             <p>Ksh {{ total_loan_outstanding|floatformat:2 }}</p>
           </div>
           <div class="card">
@@ -615,7 +619,13 @@
                 <td>
                   {{ loan.member.first_name }} {{ loan.member.last_name }}
                 </td>
-                <td>Ksh {{ loan.amount|floatformat:2 }}</td>
+                <td>
+                  {% if loan.status == "rejected" %}
+                  <span class="loan-amount-rejected">Ksh {{ loan.amount|floatformat:2 }}</span>
+                  {% else %}
+                  Ksh {{ loan.amount|floatformat:2 }}
+                  {% endif %}
+                </td>
                 <td>
                   {% if user.role == "chairperson" %}
                   <form method="post" action="{% url 'update-loan-total-paid' loan.id %}" class="loan-repaid-form">
@@ -630,18 +640,11 @@
                         value="{{ loan.total_paid_so_far|floatformat:2 }}"
                         placeholder="0.00"
                         class="loan-input"
-	                        aria-label="Total paid so far"
-	                      />
-	                    </div>
-	                    <input
-	                      type="date"
-	                      name="payment_date"
-	                      value="{{ today|date:'Y-m-d' }}"
-	                      class="loan-date-input"
-	                      aria-label="Payment date"
-	                    />
-	                    <button type="submit" class="btn btn-small">Save</button>
-	                  </form>
+                        aria-label="Total paid so far"
+                      />
+                    </div>
+                    <button type="submit" class="btn btn-small">Save</button>
+                  </form>
                   {% else %}
                   <span
                     class="paid-pill{% if loan.total_paid_so_far >= loan.total_balance %} paid-pill--full{% elif loan.total_paid_so_far > 0 %} paid-pill--partial{% endif %}"
@@ -650,7 +653,13 @@
                   </span>
                   {% endif %}
                 </td>
-                <td>Ksh {{ loan.current_balance|floatformat:2 }}</td>
+                <td>
+                  {% if loan.status == "rejected" %}
+                  Ksh 0.00
+                  {% else %}
+                  Ksh {{ loan.current_balance|floatformat:2 }}
+                  {% endif %}
+                </td>
 
                 <!-- Approval -->
                 <td>
@@ -733,6 +742,19 @@
               </tr>
               {% endfor %}
             </tbody>
+            <tfoot>
+              <tr class="loan-total-row">
+                <td>Total Approved</td>
+                <td>Ksh {{ total_loan_disbursed|floatformat:2 }}</td>
+                <td>Ksh {{ total_loan_repaid|floatformat:2 }}</td>
+                <td>Ksh {{ total_loan_outstanding|floatformat:2 }}</td>
+                {% if user.role == "chairperson" %}
+                <td colspan="7"></td>
+                {% else %}
+                <td colspan="5"></td>
+                {% endif %}
+              </tr>
+            </tfoot>
           </table>
         </div>
       </section>
@@ -936,7 +958,7 @@
         <h3>Analytics Overview</h3>
         <div class="chart-grid">
           <div class="chart-box">
-            <h4>Monthly Contributions ({{ this_year }})</h4>
+            <h4>Monthly Contributions ({{ period_label }})</h4>
             <canvas id="contribChart"></canvas>
             <div id="contribChartSummary" class="chart-summary-table-wrap"></div>
           </div>
@@ -954,7 +976,7 @@
           </div>
 
           <div class="chart-box">
-            <h4>Top 5 Approved Loan Applicants ({{ this_year }})</h4>
+            <h4>Top 5 Approved Loan Applicants ({{ period_label }})</h4>
             <canvas id="topContribChart"></canvas>
             <div id="topApplicantsSummary" class="chart-summary-table-wrap"></div>
           </div>
@@ -1262,7 +1284,7 @@
           { content: label },
           { content: formatCurrency(monthlyValues[index] ?? 0), align: "right" },
         ]),
-        emptyMessage: "No contribution data available for {{ this_year }} yet.",
+        emptyMessage: "No contribution data available for {{ period_label }} yet.",
       });
 
       const loanSummary = document.getElementById("loanChartSummary");
@@ -1394,7 +1416,7 @@
           { content: name },
           { content: formatCurrency(topContribValues[index] ?? 0), align: "right" },
         ]),
-        emptyMessage: "No loan applications recorded for {{ this_year }} yet.",
+        emptyMessage: "No loan applications recorded for {{ period_label }} yet.",
       });
     </script>
     <script>

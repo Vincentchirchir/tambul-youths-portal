@@ -1,5 +1,4 @@
 from datetime import date
-from decimal import Decimal
 from unittest.mock import patch
 
 from django.test import TestCase
@@ -7,7 +6,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
-from core.models import Contribution, Loan, LoanPayment, Notification, Welfare
+from core.models import Contribution, Loan, Notification, Welfare
 
 
 class ContributionAmountUpdateTests(TestCase):
@@ -165,85 +164,78 @@ class LoanLateStatusRulesTests(TestCase):
         self.assertEqual(loan.repayment_status, "late")
 
 
-class LoanPaymentTests(TestCase):
-    def test_total_paid_update_records_dated_payment_delta(self):
-        chairperson = User.objects.create_user(
-            username="loan_chair",
+class CommitteeDashboardPeriodFilterTests(TestCase):
+    def test_loan_totals_use_visible_table_balance_source_for_selected_month(self):
+        committee = User.objects.create_user(
+            username="period_committee",
             password="pass1234",
-            role="chairperson",
+            role="committee",
         )
-        member = User.objects.create_user(
-            username="loan_member",
+        january_member = User.objects.create_user(
+            username="january_member",
             password="pass1234",
             role="member",
         )
-        loan = Loan.objects.create(
-            member=member,
+        february_member = User.objects.create_user(
+            username="february_member",
+            password="pass1234",
+            role="member",
+        )
+        rejected_member = User.objects.create_user(
+            username="rejected_period_member",
+            password="pass1234",
+            role="member",
+        )
+        january_loan = Loan.objects.create(
+            member=january_member,
             amount=1000,
+            total_paid_so_far=200,
+            interest=0,
+            status="approved",
+            due_date=date(2028, 1, 1),
+        )
+        february_loan = Loan.objects.create(
+            member=february_member,
+            amount=2000,
             total_paid_so_far=0,
             interest=0,
             status="approved",
             due_date=date(2028, 1, 1),
         )
-        payment_date = timezone.localdate()
-
-        self.client.force_login(chairperson)
-        response = self.client.post(
-            reverse("update-loan-total-paid", args=[loan.pk]),
-            {
-                "total_paid_so_far": "300.00",
-                "payment_date": payment_date.isoformat(),
-            },
-        )
-
-        self.assertRedirects(response, reverse("committee-dashboard"))
-        loan.refresh_from_db()
-        payment = LoanPayment.objects.get(loan=loan)
-
-        self.assertEqual(loan.total_paid_so_far, Decimal("300.00"))
-        self.assertEqual(payment.amount, Decimal("300.00"))
-        self.assertEqual(payment.payment_date, payment_date)
-        self.assertEqual(payment.recorded_by, chairperson)
-
-    def test_selected_year_opening_balance_carries_previous_unpaid_loan(self):
-        committee = User.objects.create_user(
-            username="carry_committee",
-            password="pass1234",
-            role="committee",
-        )
-        member = User.objects.create_user(
-            username="carry_member",
-            password="pass1234",
-            role="member",
-        )
-        loan = Loan.objects.create(
-            member=member,
-            amount=1000,
-            total_paid_so_far=300,
+        rejected_loan = Loan.objects.create(
+            member=rejected_member,
+            amount=5000,
+            total_paid_so_far=0,
             interest=0,
-            status="approved",
+            status="rejected",
             due_date=date(2028, 1, 1),
         )
-        Loan.objects.filter(pk=loan.pk).update(
-            loan_date=date(2026, 6, 1),
-            due_date=date(2028, 1, 1),
-            repayment_status="partially_paid",
-        )
-        loan.refresh_from_db()
-        LoanPayment.objects.create(
-            loan=loan,
-            amount=300,
-            payment_date=date(2026, 12, 20),
-            recorded_by=committee,
-        )
+        Loan.objects.filter(pk=january_loan.pk).update(loan_date=date(2026, 1, 15))
+        Loan.objects.filter(pk=february_loan.pk).update(loan_date=date(2026, 2, 15))
+        Loan.objects.filter(pk=rejected_loan.pk).update(loan_date=date(2026, 1, 20))
+        january_loan.refresh_from_db()
+        rejected_loan.refresh_from_db()
 
         self.client.force_login(committee)
-        response = self.client.get(reverse("committee-dashboard"), {"year": "2027"})
+        response = self.client.get(
+            reverse("committee-dashboard"),
+            {"year": "2026", "month": "1"},
+        )
+
+        loans = list(response.context["loans"])
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["opening_loan_balance"], Decimal("800.00"))
-        self.assertEqual(response.context["total_loan_disbursed"], 0)
-        self.assertEqual(response.context["total_loan_repaid"], 0)
+        self.assertEqual(response.context["period_label"], "January 2026")
+        self.assertEqual(response.context["total_loans"], 1)
+        self.assertEqual(response.context["total_loan_disbursed"], 1000)
+        self.assertEqual(response.context["total_loan_repaid"], 200)
+        self.assertEqual(response.context["total_loan_outstanding"], january_loan.current_balance())
+        self.assertEqual(set(loans), {january_loan, rejected_loan})
+        self.assertContains(response, "loan-amount-rejected")
+        self.assertContains(response, "Total Approved")
+        self.assertContains(response, "Ksh 1000.00")
+        self.assertContains(response, "Ksh 200.00")
+        self.assertContains(response, "Ksh 900.00")
 
 
 class CommitteeDashboardAnalyticsTests(TestCase):

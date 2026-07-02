@@ -94,6 +94,9 @@ body {
 }
 
 .year-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
 }
 
@@ -525,6 +528,21 @@ main {
   font-weight: 600;
 }
 
+.loan-amount-rejected {
+  color: #991b1b;
+  font-weight: 700;
+  text-decoration-line: line-through;
+  text-decoration-color: #dc2626;
+  text-decoration-thickness: 2px;
+}
+
+.loan-total-row td {
+  background: #eff6ff;
+  border-top: 2px solid #2563eb;
+  color: #0f172a;
+  font-weight: 800;
+}
+
 .actions-col {
   min-width: 220px;
   vertical-align: top;
@@ -603,16 +621,6 @@ main {
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
-}
-
-.loan-date-input {
-  width: 132px;
-  padding: 6px 8px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background: #fff;
-  color: #0f172a;
-  font-size: 0.85rem;
 }
 
 .loan-repaid-form .btn-small {

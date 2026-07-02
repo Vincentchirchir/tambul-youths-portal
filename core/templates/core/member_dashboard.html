@@ -54,6 +54,14 @@
             </option>
             {% endfor %}
           </select>
+          <select class="year" name="month" onchange="this.form.submit()" aria-label="Dashboard month">
+            <option value="" {% if not selected_month %}selected{% endif %}>All months</option>
+            {% for month in month_options %}
+            <option value="{{ month.value }}" {% if month.value == selected_month %}selected{% endif %}>
+              {{ month.label }}
+            </option>
+            {% endfor %}
+          </select>
         </form>
         <div class="profile-dropdown">
           <button class="profile-toggle">

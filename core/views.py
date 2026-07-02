@@ -1,12 +1,11 @@
 from django.views.generic import TemplateView, CreateView, ListView, View, DetailView
 from django.views.generic.edit import FormView, UpdateView
 from django.urls import reverse_lazy, reverse
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal, InvalidOperation
-from django.db import transaction
 from django.db.models import Sum, F, ExpressionWrapper, DecimalField, Case, When, Value, Count
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from.models import Contribution, Loan, LoanPayment, Welfare, Announcement, MeetingNote, Notification
+from.models import Contribution, Loan, Welfare, Announcement, MeetingNote, Notification
 from .forms import ContributionForm, LoanApplicationForm, AnnouncementForm, MeetingNoteForm
 from django.shortcuts import render, redirect, get_object_or_404
 import requests
@@ -22,6 +21,7 @@ from reportlab.pdfgen import canvas
 from django.contrib.staticfiles import finders
 from reportlab.lib.utils import ImageReader
 import json
+import calendar
 from django.utils import timezone
 from django.http import JsonResponse
 from django.core.paginator import Paginator
@@ -48,7 +48,6 @@ def dashboard_year_options():
     date_sources = (
         (Contribution.objects, "month"),
         (Loan.objects, "loan_date"),
-        (LoanPayment.objects, "payment_date"),
         (Welfare.objects, "date_given"),
     )
 
@@ -58,10 +57,11 @@ def dashboard_year_options():
     return sorted(years, reverse=True)
 
 
-def selected_dashboard_year(request):
+def selected_dashboard_period(request):
     current_year = timezone.localdate().year
     available_years = dashboard_year_options()
     raw_year = request.GET.get("year")
+    raw_month = request.GET.get("month")
 
     try:
         year = int(raw_year) if raw_year else current_year
@@ -71,18 +71,38 @@ def selected_dashboard_year(request):
     if year not in available_years:
         available_years = sorted({*available_years, year}, reverse=True)
 
-    return year, available_years
+    try:
+        month = int(raw_month) if raw_month else None
+    except (TypeError, ValueError):
+        month = None
+
+    if month not in range(1, 13):
+        month = None
+
+    return year, month, available_years
 
 
-def dashboard_period_bounds(year):
-    period_start = date(year, 1, 1)
-    period_end = date(year, 12, 31)
-    today = timezone.localdate()
+def filter_by_dashboard_period(queryset, field_name, year, month=None):
+    filters = {f"{field_name}__year": year}
+    if month:
+        filters[f"{field_name}__month"] = month
+    return queryset.filter(**filters)
 
-    if year == today.year:
-        period_end = today
 
-    return period_start, period_end
+def dashboard_period_context(year, month, available_years):
+    month_options = [
+        {"value": number, "label": calendar.month_name[number]}
+        for number in range(1, 13)
+    ]
+    period_label = f"{calendar.month_name[month]} {year}" if month else str(year)
+    return {
+        "this_year": year,
+        "selected_year": year,
+        "selected_month": month,
+        "available_years": available_years,
+        "month_options": month_options,
+        "period_label": period_label,
+    }
 
 
 def web_manifest(request):
@@ -137,16 +157,30 @@ class MemberDashboardView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx=super().get_context_data(**kwargs)
         user=self.request.user
-        year, available_years = selected_dashboard_year(self.request)
+        year, month, available_years = selected_dashboard_period(self.request)
+        member_contributions = filter_by_dashboard_period(
+            Contribution.objects.filter(member=user),
+            "month",
+            year,
+            month,
+        )
+        member_loans = filter_by_dashboard_period(
+            Loan.objects.filter(member=user),
+            "loan_date",
+            year,
+            month,
+        )
+        member_welfare = filter_by_dashboard_period(
+            Welfare.objects.filter(member=user),
+            "date_given",
+            year,
+            month,
+        )
 
         ctx["unread_notifications"] = user.notifications.filter(is_read=False).count()
 
         ctx["contrib_ytd"] = (
-            Contribution.objects.filter(
-                member=user,
-                month__year=year,
-                status__in=["fully_paid", "partially_paid"],
-            )
+            member_contributions.filter(status__in=["fully_paid", "partially_paid"])
             .aggregate(total=Sum("amount"))["total"]
             or 0
         )
@@ -172,22 +206,21 @@ class MemberDashboardView(LoginRequiredMixin, TemplateView):
             status__in=["pending", "approved"],
         ).exists()
 
-        ctx["loans"] = Loan.objects.filter(member=user).order_by("-created_at")
+        ctx["loans"] = member_loans.order_by("-created_at")
         ctx["today"] = date.today()
 
 
         ctx["recent_contributions"]=(
-            Contribution.objects.filter(member=user, month__year=year)
-            .order_by("-month", "-created_at")[:12]
+            member_contributions.order_by("-month", "-created_at")[:12]
         )
 
 
         ctx["recent_loans"]=(
-            Loan.objects.filter(member=user).order_by("-created_at")[:5]
+            member_loans.order_by("-created_at")[:5]
         )
 
         ctx["recent_welfare"] =(
-            Welfare.objects.filter(member=user).order_by("-date_given")[:5]
+            member_welfare.order_by("-date_given")[:5]
         )
 
         ctx["latest_announcements"] = (
@@ -200,9 +233,7 @@ class MemberDashboardView(LoginRequiredMixin, TemplateView):
         )
 
 
-        ctx["this_year"]=year
-        ctx["selected_year"]=year
-        ctx["available_years"]=available_years
+        ctx.update(dashboard_period_context(year, month, available_years))
         return ctx
 
 class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
@@ -215,48 +246,45 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
     # Context Data
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        year, available_years = selected_dashboard_year(self.request)
-        period_start, period_end = dashboard_period_bounds(year)
+        year, month, available_years = selected_dashboard_period(self.request)
         user = self.request.user
         ctx["user_display_name"] = user.first_name or user.username
         ctx["unread_notifications"] = user.notifications.filter(is_read=False).count()
 
         #  1️ OVERVIEW PART
         ctx["total_members"] = User.objects.exclude(role="admin").count()
-        approved_loans = Loan.objects.filter(status="approved")
-        approved_loans_this_year = approved_loans.filter(loan_date__year=year)
-        payments_this_year = (
-            LoanPayment.objects.filter(loan__status="approved", payment_date__year=year)
-            .aggregate(total=Sum("amount"))["total"]
-            or 0
+        loans_for_period = filter_by_dashboard_period(Loan.objects.all(), "loan_date", year, month)
+        approved_loans_for_period = loans_for_period.filter(status="approved")
+        contributions_for_period = filter_by_dashboard_period(
+            Contribution.objects.all(),
+            "month",
+            year,
+            month,
         )
-        opening_balance_as_of = period_start - timedelta(days=1)
-        ctx["opening_loan_balance"] = sum(
-            loan.balance_as_of(opening_balance_as_of) for loan in approved_loans
-        )
-        ctx["closing_loan_balance"] = sum(
-            loan.balance_as_of(period_end) for loan in approved_loans
+        welfare_for_period = filter_by_dashboard_period(
+            Welfare.objects.all(),
+            "date_given",
+            year,
+            month,
         )
         ctx["total_contributions"] = (
-            Contribution.objects.filter(
-                month__year=year,
-                status__in=["fully_paid", "partially_paid"],
-            )
+            contributions_for_period.filter(status__in=["fully_paid", "partially_paid"])
             .aggregate(total=Sum("amount"))["total"]
             or 0
         )
-        ctx["total_loans"] = approved_loans_this_year.count()
-        ctx["pending_loans"] = Loan.objects.filter(status="pending", loan_date__year=year).count()
+        ctx["total_loans"] = approved_loans_for_period.count()
+        ctx["pending_loans"] = loans_for_period.filter(status="pending").count()
         ctx["total_loan_disbursed"] = (
-            approved_loans_this_year.aggregate(total=Sum("amount"))["total"] or 0
+            approved_loans_for_period.aggregate(total=Sum("amount"))["total"] or 0
         )
-        ctx["total_loan_repaid"] = payments_this_year
-        ctx["total_loan_outstanding"] = ctx["closing_loan_balance"]
+        ctx["total_loan_repaid"] = (
+            approved_loans_for_period.aggregate(total=Sum("total_paid_so_far"))["total"] or 0
+        )
+        ctx["total_loan_outstanding"] = sum(
+            loan.current_balance() for loan in approved_loans_for_period
+        )
         ctx["total_welfare"] = (
-            Welfare.objects.filter(
-                date_given__year=year,
-                status__in=["fully_paid", "partially_paid"]
-            )
+            welfare_for_period.filter(status__in=["fully_paid", "partially_paid"])
             .aggregate(total=Sum("amount"))["total"]
             or 0
         )
@@ -315,9 +343,9 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
             .exclude(role="admin")
             .order_by("first_name")
         )
-        ctx["loans"] = Loan.objects.all().order_by("-created_at")
-        ctx["contributions"] = Contribution.objects.all().order_by("-month", "-created_at")
-        ctx["welfare_records"] = Welfare.objects.all().order_by("-date_given")
+        ctx["loans"] = loans_for_period.order_by("-created_at")
+        ctx["contributions"] = contributions_for_period.order_by("-month", "-created_at")
+        ctx["welfare_records"] = welfare_for_period.order_by("-date_given")
 
         # 3️ ANNOUNCEMENTS 
         ctx["announcements"] = (
@@ -329,10 +357,7 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         #4️ ANALYTICS DATA
         # Monthly contribution
         monthly = (
-            Contribution.objects.filter(
-                month__year=year,
-                status__in=["fully_paid", "partially_paid"],
-            )
+            contributions_for_period.filter(status__in=["fully_paid", "partially_paid"])
             .annotate(month_label=TruncMonth("month"))
             .values("month_label")
             .annotate(total=Sum("amount"))
@@ -349,7 +374,7 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
             ("late", "Late"),
             ("fully_paid", "Fully Paid"),
         ]
-        approved_loans_for_analytics = Loan.objects.filter(status="approved")
+        approved_loans_for_analytics = approved_loans_for_period
         loan_stats = {
             key: {"count": 0, "total": 0.0}
             for key, _ in repayment_order
@@ -373,7 +398,7 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
 
         # Welfare totals by status
         welfare_stats = (
-            Welfare.objects.filter(date_given__year=year)
+            welfare_for_period
             .values("status")
             .annotate(total=Sum("amount"))
         )
@@ -383,16 +408,12 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         ctx["meeting_notes"] = MeetingNote.objects.all().order_by("-created_at")
 
         # 5️ YEAR & DATE INFO
-        ctx["this_year"] = year
-        ctx["selected_year"] = year
-        ctx["available_years"] = available_years
-        ctx["period_start"] = period_start
-        ctx["period_end"] = period_end
+        ctx.update(dashboard_period_context(year, month, available_years))
         ctx["today"] = date.today()
 
         # Top 5 members by approved loan amount this year
         top_borrowers = (
-            Loan.objects.filter(loan_date__year=year, status="approved")
+            approved_loans_for_period
             .values("member__username")
             .annotate(total=Sum("amount"))
             .order_by("-total")[:5]
@@ -713,22 +734,11 @@ class LoanTotalPaidUpdateView(LoginRequiredMixin, View):
 
         loan = get_object_or_404(Loan, pk=pk)
         raw_amount = request.POST.get("total_paid_so_far", "").strip()
-        raw_payment_date = request.POST.get("payment_date", "").strip()
 
         try:
             amount_repaid = Decimal(raw_amount)
         except (InvalidOperation, TypeError):
             messages.warning(request, "Enter a valid total paid amount.")
-            return redirect("committee-dashboard")
-
-        try:
-            payment_date = date.fromisoformat(raw_payment_date) if raw_payment_date else timezone.localdate()
-        except ValueError:
-            messages.warning(request, "Enter a valid payment date.")
-            return redirect("committee-dashboard")
-
-        if payment_date > timezone.localdate():
-            messages.warning(request, "Payment date cannot be in the future.")
             return redirect("committee-dashboard")
 
         if amount_repaid < 0:
@@ -740,42 +750,16 @@ class LoanTotalPaidUpdateView(LoginRequiredMixin, View):
             messages.warning(request, "Total paid cannot exceed the total balance.")
             return redirect("committee-dashboard")
 
-        previous_total = loan.total_paid_so_far or Decimal("0.00")
-        payment_amount = amount_repaid - previous_total
-
-        if payment_amount < 0:
-            messages.warning(
-                request,
-                "Total paid cannot be less than the recorded payment history.",
-            )
-            return redirect("committee-dashboard")
-
-        with transaction.atomic():
-            if payment_amount > 0:
-                LoanPayment.objects.create(
-                    loan=loan,
-                    amount=payment_amount,
-                    payment_date=payment_date,
-                    recorded_by=request.user,
-                )
-
-            loan.total_paid_so_far = amount_repaid
-            if amount_repaid == 0:
-                loan.repayment_status = "not_paid"
-            elif amount_repaid < total_balance:
-                loan.repayment_status = "partially_paid"
-            else:
-                loan.repayment_status = "fully_paid"
-
-            loan.repayment_updated_at = payment_date
-            loan.save(update_fields=["total_paid_so_far", "repayment_status", "repayment_updated_at"])
-
-        if payment_amount > 0:
-            message = f"Payment of Ksh {payment_amount} recorded for {loan.member.username}."
+        loan.total_paid_so_far = amount_repaid
+        if amount_repaid == 0:
+            loan.repayment_status = "not_paid"
+        elif amount_repaid < total_balance:
+            loan.repayment_status = "partially_paid"
         else:
-            message = f"Total paid unchanged for {loan.member.username}."
+            loan.repayment_status = "fully_paid"
 
-        messages.success(request, message)
+        loan.repayment_updated_at = timezone.localdate()
+        loan.save(update_fields=["total_paid_so_far", "repayment_status", "repayment_updated_at"])
         notify_users(
             recipients=[loan.member],
             title="Loan Payment Updated",
@@ -786,6 +770,7 @@ class LoanTotalPaidUpdateView(LoginRequiredMixin, View):
             link="/member-dashboard",
             send_email=True,
         )
+        messages.success(request, f"Total paid updated for {loan.member.username}.")
         return redirect("committee-dashboard")
 
 class ContributionStatusUpdateView(LoginRequiredMixin, View):
