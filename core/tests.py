@@ -1,4 +1,5 @@
-from datetime import date
+from datetime import date, datetime
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.core import mail
@@ -7,7 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
-from core.models import Contribution, Loan, Notification, Welfare
+from core.models import Announcement, Contribution, Loan, MeetingNote, Notification, Welfare
 from core.services.notifications import (
     _to_absolute_link,
     normalize_notification_link,
@@ -53,6 +54,75 @@ class NotificationLinkNormalizationTests(SimpleTestCase):
 
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("https://tambul.org/member-dashboard", mail.outbox[0].body)
+
+
+class MemberDashboardPeriodFilterTests(TestCase):
+    def test_selected_year_filters_loan_summary_announcements_and_meeting_notes(self):
+        member = User.objects.create_user(
+            username="period_member",
+            password="pass1234",
+            role="member",
+        )
+        loan_2025 = Loan.objects.create(
+            member=member,
+            amount=Decimal("500.00"),
+            status="approved",
+        )
+        loan_2026 = Loan.objects.create(
+            member=member,
+            amount=Decimal("7000.00"),
+            status="approved",
+        )
+        Loan.objects.filter(pk=loan_2025.pk).update(loan_date=date(2025, 2, 1))
+        Loan.objects.filter(pk=loan_2026.pk).update(loan_date=date(2026, 2, 1))
+
+        announcement_2025 = Announcement.objects.create(
+            title="2025 announcement",
+            message="This announcement belongs to 2025.",
+        )
+        announcement_2026 = Announcement.objects.create(
+            title="2026 announcement",
+            message="This announcement belongs to 2026.",
+        )
+        Announcement.objects.filter(pk=announcement_2025.pk).update(
+            published_at=timezone.make_aware(datetime(2025, 2, 17, 10, 0))
+        )
+        Announcement.objects.filter(pk=announcement_2026.pk).update(
+            published_at=timezone.make_aware(datetime(2026, 2, 17, 10, 0))
+        )
+
+        note_2025 = MeetingNote.objects.create(
+            title="2025 minutes",
+            description="Minutes for 2025.",
+            audience=MeetingNote.AUDIENCE_ALL,
+        )
+        note_2026 = MeetingNote.objects.create(
+            title="2026 minutes",
+            description="Minutes for 2026.",
+            audience=MeetingNote.AUDIENCE_ALL,
+        )
+        MeetingNote.objects.filter(pk=note_2025.pk).update(
+            created_at=timezone.make_aware(datetime(2025, 3, 1, 10, 0))
+        )
+        MeetingNote.objects.filter(pk=note_2026.pk).update(
+            created_at=timezone.make_aware(datetime(2026, 3, 1, 10, 0))
+        )
+
+        self.client.force_login(member)
+        response = self.client.get(reverse("member-dashboard"), {"year": "2025"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["active_loan_count"], 1)
+        self.assertEqual(response.context["outstanding_principal"], Decimal("500.00"))
+        self.assertEqual([loan.pk for loan in response.context["loans"]], [loan_2025.pk])
+        self.assertEqual(
+            [announcement.pk for announcement in response.context["latest_announcements"]],
+            [announcement_2025.pk],
+        )
+        self.assertEqual(
+            [note.pk for note in response.context["meeting_notes"]],
+            [note_2025.pk],
+        )
 
 
 class ContributionAmountUpdateTests(TestCase):
@@ -282,6 +352,77 @@ class CommitteeDashboardPeriodFilterTests(TestCase):
         self.assertContains(response, "Ksh 1000.00")
         self.assertContains(response, "Ksh 200.00")
         self.assertContains(response, "Ksh 900.00")
+
+    def test_selected_year_filters_personal_summary_announcements_and_meeting_notes(self):
+        committee = User.objects.create_user(
+            username="summary_committee",
+            password="pass1234",
+            role="committee",
+        )
+        loan_2025 = Loan.objects.create(
+            member=committee,
+            amount=Decimal("500.00"),
+            status="approved",
+            due_date=date(2028, 1, 1),
+        )
+        loan_2026 = Loan.objects.create(
+            member=committee,
+            amount=Decimal("7000.00"),
+            status="approved",
+            due_date=date(2028, 1, 1),
+        )
+        Loan.objects.filter(pk=loan_2025.pk).update(loan_date=date(2025, 2, 1))
+        Loan.objects.filter(pk=loan_2026.pk).update(loan_date=date(2026, 2, 1))
+
+        announcement_2025 = Announcement.objects.create(
+            title="Committee 2025 announcement",
+            message="This announcement belongs to 2025.",
+        )
+        announcement_2026 = Announcement.objects.create(
+            title="Committee 2026 announcement",
+            message="This announcement belongs to 2026.",
+        )
+        Announcement.objects.filter(pk=announcement_2025.pk).update(
+            published_at=timezone.make_aware(datetime(2025, 2, 17, 10, 0))
+        )
+        Announcement.objects.filter(pk=announcement_2026.pk).update(
+            published_at=timezone.make_aware(datetime(2026, 2, 17, 10, 0))
+        )
+
+        note_2025 = MeetingNote.objects.create(
+            title="Committee 2025 minutes",
+            description="Minutes for 2025.",
+        )
+        note_2026 = MeetingNote.objects.create(
+            title="Committee 2026 minutes",
+            description="Minutes for 2026.",
+        )
+        MeetingNote.objects.filter(pk=note_2025.pk).update(
+            created_at=timezone.make_aware(datetime(2025, 3, 1, 10, 0))
+        )
+        MeetingNote.objects.filter(pk=note_2026.pk).update(
+            created_at=timezone.make_aware(datetime(2026, 3, 1, 10, 0))
+        )
+
+        self.client.force_login(committee)
+        response = self.client.get(reverse("committee-dashboard"), {"year": "2025"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["my_active_loan_count"], 1)
+        self.assertEqual(response.context["my_outstanding_principal"], Decimal("500.00"))
+        self.assertEqual([loan.pk for loan in response.context["my_loans"]], [loan_2025.pk])
+        self.assertEqual(
+            [announcement.pk for announcement in response.context["latest_announcements"]],
+            [announcement_2025.pk],
+        )
+        self.assertEqual(
+            [announcement.pk for announcement in response.context["announcements"]],
+            [announcement_2025.pk],
+        )
+        self.assertEqual(
+            [note.pk for note in response.context["meeting_notes"]],
+            [note_2025.pk],
+        )
 
 
 class CommitteeDashboardAnalyticsTests(TestCase):

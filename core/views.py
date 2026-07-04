@@ -189,19 +189,15 @@ class MemberDashboardView(LoginRequiredMixin, TemplateView):
             or 0
         )
 
+        period_active_loans = member_loans.filter(status__in=["pending", "approved"])
 
-        ctx["active_loan_count"]=Loan.objects.filter(
-            member=user, status__in=["pending", "approved"]
-            ).count()
+        ctx["active_loan_count"] = period_active_loans.count()
 
 
         ctx["outstanding_principal"]=(
-            Loan.objects.filter(member=user, status__in=["pending", "approved"])
-            .aggregate(total=Sum("amount"))["total"] or 0
+            period_active_loans.aggregate(total=Sum("amount"))["total"] or 0
         )
-        active_loans=Loan.objects.filter(member=user, status__in=["pending", "approved"])
-        ctx["loan_balance"] = sum(loan.current_balance() for loan in active_loans)
-        ctx["loans"]=active_loans
+        ctx["loan_balance"] = sum(loan.current_balance() for loan in period_active_loans)
         ctx["today"]=date.today()
 
         ctx["can_apply_loan"] = not Loan.objects.filter(
@@ -228,12 +224,17 @@ class MemberDashboardView(LoginRequiredMixin, TemplateView):
         )
 
         ctx["latest_announcements"] = (
-            Announcement.objects.all().order_by("-published_at")[:5]
-            if Announcement.objects.exists() else []
+            filter_by_dashboard_period(Announcement.objects.all(), "published_at", year, month)
+            .order_by("-published_at")[:5]
         )
 
         ctx["meeting_notes"] = (
-            MeetingNote.objects.filter(audience=MeetingNote.AUDIENCE_ALL).order_by("-created_at")
+            filter_by_dashboard_period(
+                MeetingNote.objects.filter(audience=MeetingNote.AUDIENCE_ALL),
+                "created_at",
+                year,
+                month,
+            ).order_by("-created_at")
         )
 
 
@@ -294,19 +295,44 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         )
 
         # Personal summary metrics for the logged-in committee member
+        personal_contributions_for_period = filter_by_dashboard_period(
+            Contribution.objects.filter(member=user),
+            "month",
+            year,
+            month,
+        )
+        personal_loans_for_period = filter_by_dashboard_period(
+            Loan.objects.filter(member=user),
+            "loan_date",
+            year,
+            month,
+        )
+        personal_welfare_for_period = filter_by_dashboard_period(
+            Welfare.objects.filter(member=user),
+            "date_given",
+            year,
+            month,
+        )
+        announcements_for_period = filter_by_dashboard_period(
+            Announcement.objects.all(),
+            "published_at",
+            year,
+            month,
+        )
+        meeting_notes_for_period = filter_by_dashboard_period(
+            MeetingNote.objects.all(),
+            "created_at",
+            year,
+            month,
+        )
+
         ctx["my_contrib_ytd"] = (
-            Contribution.objects.filter(
-                member=user,
-                month__year=year,
-                status__in=["fully_paid", "partially_paid"],
-            )
+            personal_contributions_for_period.filter(status__in=["fully_paid", "partially_paid"])
             .aggregate(total=Sum("amount"))["total"]
             or 0
         )
 
-        personal_active_loans = Loan.objects.filter(
-            member=user, status__in=["pending", "approved"]
-        )
+        personal_active_loans = personal_loans_for_period.filter(status__in=["pending", "approved"])
 
         ctx["my_active_loan_count"] = personal_active_loans.count()
         ctx["my_outstanding_principal"] = (
@@ -324,20 +350,18 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
             status__in=["pending", "approved"],
         ).exists()
 
-        ctx["my_loans"] = Loan.objects.filter(member=user).order_by("-created_at")
+        ctx["my_loans"] = personal_loans_for_period.order_by("-created_at")
         ctx["my_contributions"] = (
-            Contribution.objects.filter(member=user).order_by("-month", "-created_at")[:6]
+            personal_contributions_for_period.order_by("-month", "-created_at")[:6]
         )
         ctx["my_welfare"] = (
-            Welfare.objects.filter(member=user).order_by("-date_given")[:6]
+            personal_welfare_for_period.order_by("-date_given")[:6]
         )
         ctx["my_welfare_total"] = (
-            Welfare.objects.filter(member=user).aggregate(total=Sum("amount"))["total"] or 0
+            personal_welfare_for_period.aggregate(total=Sum("amount"))["total"] or 0
         )
         ctx["latest_announcements"] = (
-            Announcement.objects.all().order_by("-published_at")[:5]
-            if Announcement.objects.exists()
-            else []
+            announcements_for_period.order_by("-published_at")[:5]
         )
         ctx["today"] = date.today()
 
@@ -353,9 +377,7 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
 
         # 3️ ANNOUNCEMENTS 
         ctx["announcements"] = (
-            Announcement.objects.all().order_by("-published_at")[:10]
-            if Announcement.objects.exists()
-            else []
+            announcements_for_period.order_by("-published_at")[:10]
         )
 
         #4️ ANALYTICS DATA
@@ -409,7 +431,7 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         ctx["welfare_labels"] = [w["status"] for w in welfare_stats]
         ctx["welfare_totals"] = [float(w["total"]) for w in welfare_stats]
         #Meeting Reports
-        ctx["meeting_notes"] = MeetingNote.objects.all().order_by("-created_at")
+        ctx["meeting_notes"] = meeting_notes_for_period.order_by("-created_at")
 
         # 5️ YEAR & DATE INFO
         ctx.update(dashboard_period_context(year, month, available_years))

@@ -196,25 +196,25 @@
         <div class="cards">
           <div class="card">
             <h4>Ksh {{ my_contrib_ytd|floatformat:2 }}</h4>
-            <p>Total Contributions</p>
+            <p>Total Contributions ({{ period_label }})</p>
           </div>
           <div class="card">
             <h4>{{ my_active_loan_count }}</h4>
-            <p>Active Loans</p>
+            <p>Active Loans ({{ period_label }})</p>
           </div>
           <div class="card">
             <h4>Ksh {{ my_outstanding_principal|floatformat:2 }}</h4>
-            <p>Total Loan Borrowed</p>
+            <p>Total Loan Borrowed ({{ period_label }})</p>
           </div>
           <div class="card">
             <h4>Ksh {{ my_loan_balance|floatformat:2 }}</h4>
-            <p>Total Loan Balance</p>
+            <p>Total Loan Balance ({{ period_label }})</p>
           </div>
         </div>
 
         <!-- Announcements -->
         <section class="table-section">
-          <h3 class="section-title">Latest Announcements</h3>
+          <h3 class="section-title">Latest Announcements ({{ period_label }})</h3>
           <div class="table-wrap">
             <table class="styled-table">
               <thead>
@@ -278,7 +278,7 @@
 
         <!-- My Loans -->
         <section class="table-section">
-          <h3 class="section-title">My Loans</h3>
+          <h3 class="section-title">My Loans ({{ period_label }})</h3>
           <div class="table-wrap">
             <table class="styled-table">
               <thead>
@@ -351,7 +351,7 @@
 
         <!-- Monthly Contributions -->
         <section class="table-section">
-          <h3 class="section-title">My Monthly Contributions</h3>
+          <h3 class="section-title">My Monthly Contributions ({{ period_label }})</h3>
           <div class="table-wrap">
             <table class="styled-table">
               <thead>
@@ -388,7 +388,7 @@
 
         <!-- My Welfare -->
         <section class="table-section">
-          <h3 class="section-title">My Welfare Contributions</h3>
+          <h3 class="section-title">My Welfare Contributions ({{ period_label }})</h3>
           <div class="table-wrap">
             <table class="styled-table">
               <thead>
@@ -425,7 +425,7 @@
 
         <!-- Reports (Meeting Minutes) -->
         <section class="table-section">
-          <h3 class="section-title">Reports & Meeting Minutes</h3>
+          <h3 class="section-title">Reports & Meeting Minutes ({{ period_label }})</h3>
           <div class="table-wrap">
             <table class="styled-table">
               <thead>

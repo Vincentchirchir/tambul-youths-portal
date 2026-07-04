@@ -616,21 +616,40 @@ body {
   .topbar-right {
     width: 100%;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
   }
 
   .notif-container {
     justify-self: start;
   }
 
-  .year {
-    justify-self: center;
+  .year-filter {
+    min-width: 0;
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(78px, 0.7fr) minmax(118px, 1fr);
+    gap: 8px;
+  }
+
+  .year-filter .year {
+    width: 100%;
+    min-width: 0;
+    padding: 7px 10px;
+    text-overflow: ellipsis;
   }
 
   .profile-dropdown {
     justify-self: end;
+  }
+
+  .profile-toggle {
+    gap: 6px;
+  }
+
+  .profile-name {
+    display: none;
   }
 
   .notif-panel {
