@@ -603,22 +603,35 @@ body {
 @media (max-width: 768px) {
   .topbar {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 16px 18px;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 20px;
+  }
+
+  .brand {
+    justify-content: center;
+    text-align: center;
+    width: 100%;
   }
 
   .topbar-center {
+    order: 2;
     width: 100%;
-    justify-content: flex-start;
+    justify-content: center;
+    text-align: center;
+    margin: 6px 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   }
 
   .topbar-right {
+    order: 3;
     width: 100%;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(34px, 0.35fr) auto minmax(112px, 0.65fr);
     align-items: center;
-    gap: 10px;
+    gap: 12px;
+    margin-top: 10px;
   }
 
   .notif-container {
@@ -626,10 +639,9 @@ body {
   }
 
   .year-filter {
-    min-width: 0;
-    width: 100%;
+    justify-self: center;
     display: grid;
-    grid-template-columns: minmax(78px, 0.7fr) minmax(118px, 1fr);
+    grid-template-columns: 78px 128px;
     gap: 8px;
   }
 
@@ -646,10 +658,6 @@ body {
 
   .profile-toggle {
     gap: 6px;
-  }
-
-  .profile-name {
-    display: none;
   }
 
   .notif-panel {
@@ -694,6 +702,38 @@ body {
   .styled-table td {
     font-size: 0.85rem;
     padding: 10px;
+  }
+}
+
+@media (max-width: 430px) {
+  .topbar {
+    padding-inline: 16px;
+  }
+
+  .topbar-right {
+    grid-template-columns: minmax(32px, 0.32fr) auto minmax(104px, 0.68fr);
+    gap: 8px;
+  }
+
+  .year-filter {
+    grid-template-columns: 72px 112px;
+    gap: 6px;
+  }
+
+  .year-filter .year {
+    font-size: 0.85rem;
+    padding: 7px 8px;
+  }
+
+  .profile-toggle {
+    gap: 5px;
+    font-size: 0.85rem;
+  }
+
+  .profile-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 0.82rem;
   }
 }
 
