@@ -26,7 +26,11 @@ from django.utils import timezone
 from django.http import JsonResponse
 from django.core.paginator import Paginator
 from django.contrib.auth.mixins import PermissionRequiredMixin
-from .services.notifications import notify_users, committee_users
+from .services.notifications import (
+    committee_users,
+    normalize_notification_link,
+    notify_users,
+)
 from django.templatetags.static import static
 
 COMMITTEE_ROLES = {
@@ -1091,9 +1095,14 @@ class NotificationListView(LoginRequiredMixin, ListView):
 class MarkNotificationReadView(LoginRequiredMixin, View):
     def get(self, request, pk):
         notif = get_object_or_404(Notification, pk=pk, recipient=request.user)
+        normalized_link = normalize_notification_link(notif.link)
         notif.is_read = True
-        notif.save()
-        return redirect(notif.link or "notifications")
+        update_fields = ["is_read"]
+        if normalized_link and normalized_link != notif.link:
+            notif.link = normalized_link
+            update_fields.append("link")
+        notif.save(update_fields=update_fields)
+        return redirect(normalized_link or "notifications")
 
 class MarkAllNotificationsReadView(LoginRequiredMixin, View):
     def post(self, request):
@@ -1125,7 +1134,7 @@ class NotificationFetchView(LoginRequiredMixin, View):
                 "id": n.id,
                 "title": n.title or "Notification",
                 "message": n.message or "",
-                "link": n.link or "#",
+                "link": normalize_notification_link(n.link) or "#",
                 "is_read": n.is_read,
                 "created_at": n.created_at.strftime("%b %d, %I:%M %p"),
             }

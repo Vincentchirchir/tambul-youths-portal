@@ -1,12 +1,58 @@
 from datetime import date
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.core import mail
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
 from core.models import Contribution, Loan, Notification, Welfare
+from core.services.notifications import (
+    _to_absolute_link,
+    normalize_notification_link,
+    send_email_notifications,
+)
+
+
+class NotificationLinkNormalizationTests(SimpleTestCase):
+    def test_legacy_render_link_normalizes_to_relative_path(self):
+        link = "https://tambulyouths.onrender.com/member-dashboard?tab=loans#latest"
+
+        normalized = normalize_notification_link(link)
+
+        self.assertEqual(normalized, "/member-dashboard?tab=loans#latest")
+
+    def test_external_link_is_preserved(self):
+        link = "https://example.com/document.pdf"
+
+        normalized = normalize_notification_link(link)
+
+        self.assertEqual(normalized, link)
+
+    @override_settings(SITE_BASE_URL="https://tambulyouths.onrender.com")
+    def test_stale_site_base_url_uses_canonical_domain_for_emails(self):
+        absolute_link = _to_absolute_link("/member-dashboard")
+
+        self.assertEqual(absolute_link, "https://tambul.org/member-dashboard")
+
+    @override_settings(
+        NOTIFICATIONS_SEND_EMAILS=True,
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        SITE_BASE_URL="https://tambulyouths.onrender.com",
+    )
+    def test_notification_email_body_uses_tambul_org_link(self):
+        recipient = User(email="member@example.com")
+
+        send_email_notifications(
+            recipients=[recipient],
+            subject="Contribution Status Updated",
+            message="Your contribution status was updated.",
+            link="/member-dashboard",
+        )
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("https://tambul.org/member-dashboard", mail.outbox[0].body)
 
 
 class ContributionAmountUpdateTests(TestCase):

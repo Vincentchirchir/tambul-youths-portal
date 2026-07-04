@@ -11,6 +11,9 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
+
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,7 +26,6 @@ environ.Env.read_env(BASE_DIR / ".env")
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-import os
 
 # Detect local vs production (set ENVIRONMENT=production on deploy)
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "development")
@@ -41,11 +43,10 @@ DEBUG = ENVIRONMENT != "production"
 if ENVIRONMENT == "development":
     ALLOWED_HOSTS = ["localhost", "127.0.0.1", "172.29.89.229"]
 else:
-    ALLOWED_HOSTS = ["tambulyouths.onrender.com","tambul.org", "www.tambul.org",]
+    ALLOWED_HOSTS = ["tambul.org", "www.tambul.org"]
 
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://tambulyouths.onrender.com",
     "https://tambul.org",
     "https://www.tambul.org",
 ]
@@ -124,37 +125,25 @@ WSGI_APPLICATION = 'tambulyouthgroup_portal.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-#if ENVIRONMENT == "development":
-    #DATABASES = {
-     #   "default": {
-    #        "ENGINE": "django.db.backends.sqlite3",
-    #        "NAME": BASE_DIR / "db.sqlite3",
-  #      }
- #   }
-#else:
-DATABASES = {
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=300,
+            ssl_require=ENVIRONMENT == "production",
+        )
+    }
+elif ENVIRONMENT == "development":
+    DATABASES = {
         "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": "fieldmax_db_exx4",
-            "USER": "fieldmax_db_exx4_user",
-            "PASSWORD": "lAvVBkjMXyUrxGPBkAYWzYQNJKaOiN5j",
-            "HOST": "dpg-d1i10rili9vc73d54u5g-a.oregon-postgres.render.com",
-            "PORT": "5432",
-            "CONN_MAX_AGE": 300,
-            "OPTIONS": {"sslmode": "require"},
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
         }
     }
-
-# import dj_database_url
-
-# database_url = os.environ.get("DATABASE_URL")
-# DATABASES = {
-#     "default": dj_database_url.config(
-#         default=database_url,
-#         conn_max_age=300,
-#         ssl_require=True,
-#     )
-# }
+else:
+    raise RuntimeError("DATABASE_URL environment variable is required in production.")
 
 
 # Password validation
@@ -272,7 +261,7 @@ def env_bool(name, default=False):
 
 SITE_BASE_URL = os.environ.get(
     "SITE_BASE_URL",
-    "http://localhost:8000" if ENVIRONMENT == "development" else "https://tambulyouths.onrender.com",
+    "http://localhost:8000" if ENVIRONMENT == "development" else "https://tambul.org",
 )
 
 NOTIFICATIONS_SEND_EMAILS = env_bool("NOTIFICATIONS_SEND_EMAILS", default=False)
