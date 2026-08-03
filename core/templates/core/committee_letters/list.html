@@ -1,0 +1,92 @@
+{% extends "core/committee_letters/base.html" %}
+
+{% block title %}Committee Letters | Tambul Hustle{% endblock %}
+
+{% block content %}
+<section class="letter-page-header">
+  <div>
+    <h1>Letters</h1>
+    <p class="muted">Draft, review, approve, issue, and archive official letters.</p>
+  </div>
+  <div class="letter-actions">
+    <a class="btn" href="{% url 'committee-letter-create' %}">Create New Letter</a>
+  </div>
+</section>
+
+<section class="letter-stats" aria-label="Letter status totals">
+  <div class="letter-stat">
+    <span>Total letters</span>
+    <strong>{{ total_letters }}</strong>
+  </div>
+  {% for item in status_cards %}
+  <div class="letter-stat">
+    <span>{{ item.label }}</span>
+    <strong>{{ item.total }}</strong>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="letter-panel">
+  <h2>Recently Created Letters</h2>
+  <div class="table-wrap">
+    <table class="letter-table">
+      <thead>
+        <tr>
+          <th>Reference</th>
+          <th>Type</th>
+          <th>Recipient</th>
+          <th>Subject</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for letter in letters %}
+        <tr>
+          <td>
+            {{ letter.reference_number }}
+            <span class="subtext">Version {{ letter.version }}</span>
+          </td>
+          <td>{{ letter.get_letter_type_display }}</td>
+          <td>
+            {{ letter.recipient_name }}
+            {% if letter.recipient_position %}
+            <span class="subtext">{{ letter.recipient_position }}</span>
+            {% endif %}
+          </td>
+          <td>{{ letter.subject }}</td>
+          <td>
+            <span class="status status--{{ letter.status|slugify }}">
+              {{ letter.get_status_display }}
+            </span>
+          </td>
+          <td>{{ letter.created_at|date:"M d, Y" }}</td>
+          <td>
+            <div class="letter-row-actions">
+              <a class="btn btn-small btn-outline" href="{% url 'committee-letter-detail' letter.pk %}">View</a>
+              <a class="btn btn-small btn-outline" href="{% url 'committee-letter-preview' letter.pk %}">Preview</a>
+              {% if letter.can_edit %}
+              {% if letter.created_by_id == request.user.id or request.user.role == "chairperson" or request.user.role == "secretary" or request.user.role == "admin" %}
+              <a class="btn btn-small" href="{% url 'committee-letter-edit' letter.pk %}">Edit</a>
+              {% endif %}
+              {% endif %}
+              {% if letter.status == "approved" or letter.status == "issued" %}
+              {% if can_issue_letters %}
+              <a class="btn btn-small btn-secondary" href="{% url 'committee-letter-generate-pdf' letter.pk %}">Regenerate</a>
+              {% endif %}
+              <a class="btn btn-small" href="{% url 'committee-letter-pdf' letter.pk %}">Download PDF</a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7">No committee letters have been created yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

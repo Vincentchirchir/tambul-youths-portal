@@ -1,0 +1,26 @@
+{% extends "core/committee_letters/base.html" %}
+
+{% block title %}Verify Letter | Tambul Hustle{% endblock %}
+
+{% block content %}
+<section class="letter-page-header">
+  <div>
+    <h1>Verify Committee Letter</h1>
+    <p class="muted">Enter a verification code to confirm the official record.</p>
+  </div>
+</section>
+
+<section class="letter-panel">
+  <form method="post" class="letter-form">
+    {% csrf_token %}
+    <label>
+      <span>Verification code</span>
+      {{ form.verification_code }}
+      {{ form.verification_code.errors }}
+    </label>
+    <div class="letter-actions" style="margin-top: 16px">
+      <button class="btn" type="submit">Verify</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

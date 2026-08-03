@@ -1,0 +1,40 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Letters | Tambul Hustle{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/favicon.svg' %}" />
+    <link rel="stylesheet" href="{% static 'core/committee_letters.css' %}" />
+    {% block extra_css %}{% endblock %}
+  </head>
+  <body>
+    <header class="letter-shell-header">
+      <a class="letter-brand" href="{% url 'committee-dashboard' %}">
+        <img src="{% static 'images/logo.png' %}" alt="Tambul Hustle logo" />
+        <span>
+          <strong>Tambul Hustle Youth Group</strong>
+          <span>Letters</span>
+        </span>
+      </a>
+      <nav class="letter-shell-nav" aria-label="Committee letters navigation">
+        <a href="{% url 'committee-dashboard' %}">Dashboard</a>
+        <a href="{% url 'committee-letter-list' %}">Letters</a>
+        <a href="{% url 'committee-letter-create' %}">Create</a>
+        <a href="{% url 'letter-verify' %}">Verify</a>
+      </nav>
+    </header>
+
+    <main class="letter-page">
+      {% if messages %}
+      <div class="flash-messages">
+        {% for message in messages %}
+        <div class="flash">{{ message }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>

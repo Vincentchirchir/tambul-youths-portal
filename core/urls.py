@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.urls import path
-from .views import Index, MemberDashboardView, CommitteeDashboardView, ExportLoansCSV, ExportLoansPDF, ExportContributionsCSV, ExportContributionsPDF, ExportWelfareCSV, ExportWelfarePDF, LoanRepaymentUpdateView, LoanTotalPaidUpdateView, ContributionStatusUpdateView, ContributionAmountUpdateView, WelfareAmountUpdateView, WelfareStatusUpdateView, LoanApplicationView, LoanApprovalUpdateView, AnnouncementCreateView, PostMeetingNoteView, PostAnnouncementView, ProfileView, EditProfileView, NotificationListView, MarkNotificationReadView, MarkAllNotificationsReadView, NotificationFetchView, AnnouncementDetailView, MeetingMinutesDetailView, web_manifest, service_worker
+from .views import Index, MemberDashboardView, CommitteeDashboardView, CommitteeLetterApproveView, CommitteeLetterCancelView, CommitteeLetterCorrectView, CommitteeLetterCreateView, CommitteeLetterDetailView, CommitteeLetterEditView, CommitteeLetterGeneratePDFView, CommitteeLetterIssueView, CommitteeLetterListView, CommitteeLetterPDFView, CommitteeLetterPreviewView, CommitteeLetterReturnView, CommitteeLetterStatusUpdateView, CommitteeLetterSubmitView, ExportLoansCSV, ExportLoansPDF, ExportContributionsCSV, ExportContributionsPDF, ExportWelfareCSV, ExportWelfarePDF, LetterVerifyResultView, LetterVerifyView, LoanRepaymentUpdateView, LoanTotalPaidUpdateView, ContributionStatusUpdateView, ContributionAmountUpdateView, WelfareAmountUpdateView, WelfareStatusUpdateView, LoanApplicationView, LoanApprovalUpdateView, AnnouncementCreateView, PostMeetingNoteView, PostAnnouncementView, ProfileView, EditProfileView, NotificationListView, MarkNotificationReadView, MarkAllNotificationsReadView, NotificationFetchView, AnnouncementDetailView, MeetingMinutesDetailView, web_manifest, service_worker
 
 
 urlpatterns = [
@@ -9,6 +9,24 @@ urlpatterns = [
     path('', Index.as_view(), name='index'),
     path('member-dashboard', MemberDashboardView.as_view(), name='member-dashboard'),
     path("committee-dashboard/", CommitteeDashboardView.as_view(), name="committee-dashboard"),
+    path("committee/letters/", CommitteeLetterListView.as_view(), name="committee-letter-list"),
+    path("committee/letters/create/", CommitteeLetterCreateView.as_view(), name="committee-letter-create"),
+    path("committee/letters/<int:pk>/", CommitteeLetterDetailView.as_view(), name="committee-letter-detail"),
+    path("committee/letters/<int:pk>/edit/", CommitteeLetterEditView.as_view(), name="committee-letter-edit"),
+    path("committee/letters/<int:pk>/preview/", CommitteeLetterPreviewView.as_view(), name="committee-letter-preview"),
+    path("committee/letters/<int:pk>/submit/", CommitteeLetterSubmitView.as_view(), name="committee-letter-submit"),
+    path("committee/letters/<int:pk>/return/", CommitteeLetterReturnView.as_view(), name="committee-letter-return"),
+    path("committee/letters/<int:pk>/approve/", CommitteeLetterApproveView.as_view(), name="committee-letter-approve"),
+    path("committee/letters/<int:pk>/issue/", CommitteeLetterIssueView.as_view(), name="committee-letter-issue"),
+    path("committee/letters/<int:pk>/cancel/", CommitteeLetterCancelView.as_view(), name="committee-letter-cancel"),
+    path("committee/letters/<int:pk>/correct/", CommitteeLetterCorrectView.as_view(), name="committee-letter-correct"),
+    path("committee/letters/<int:pk>/generate-pdf/", CommitteeLetterGeneratePDFView.as_view(), name="committee-letter-generate-pdf"),
+    path("committee/letters/<int:pk>/pdf/", CommitteeLetterPDFView.as_view(), name="committee-letter-pdf"),
+    path("letters/verify/", LetterVerifyView.as_view(), name="letter-verify"),
+    path("letters/verify/<str:verification_code>/", LetterVerifyResultView.as_view(), name="letter-verify-result"),
+    path("committee-letters/create/", CommitteeLetterCreateView.as_view(), name="legacy-committee-letter-create"),
+    path("committee-letters/<int:pk>/pdf/", CommitteeLetterPDFView.as_view(), name="legacy-committee-letter-pdf"),
+    path("committee-letters/<int:pk>/<str:action>/", CommitteeLetterStatusUpdateView.as_view(), name="committee-letter-status"),
     path("export/loans/csv/", ExportLoansCSV.as_view(), name="export-loan-csv"),
     path("export/loans/pdf/", ExportLoansPDF.as_view(), name="export-loan-pdf"),
     path("export/contributions/csv/", ExportContributionsCSV.as_view(), name="export-contrib-csv"),

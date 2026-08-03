@@ -1,0 +1,79 @@
+{% extends "core/committee_letters/base.html" %}
+
+{% block title %}{{ letter.reference_number }} | Tambul Hustle{% endblock %}
+
+{% block content %}
+<section class="letter-page-header">
+  <div>
+    <h1>{{ letter.reference_number }}</h1>
+    <p class="muted">{{ letter.subject }}</p>
+  </div>
+  <div class="letter-actions">
+    <a class="btn btn-outline" href="{% url 'committee-letter-list' %}">Back</a>
+    <a class="btn btn-outline" href="{% url 'committee-letter-preview' letter.pk %}">Preview</a>
+    {% if can_edit %}
+    <a class="btn" href="{% url 'committee-letter-edit' letter.pk %}">Edit Draft</a>
+    <a class="btn" href="{% url 'committee-letter-submit' letter.pk %}">Submit</a>
+    {% endif %}
+    {% if letter.status == "submitted" and can_review %}
+    <a class="btn btn-secondary" href="{% url 'committee-letter-return' letter.pk %}">Return</a>
+    {% endif %}
+    {% if letter.status == "submitted" and can_approve %}
+    <a class="btn" href="{% url 'committee-letter-approve' letter.pk %}">Approve</a>
+    {% endif %}
+    {% if letter.status == "approved" and can_issue %}
+    <a class="btn" href="{% url 'committee-letter-issue' letter.pk %}">Issue</a>
+    {% endif %}
+    {% if letter.status == "approved" or letter.status == "issued" %}
+    {% if can_issue %}
+    <a class="btn btn-secondary" href="{% url 'committee-letter-generate-pdf' letter.pk %}">Regenerate PDF</a>
+    {% endif %}
+    <a class="btn" href="{% url 'committee-letter-pdf' letter.pk %}">Download PDF</a>
+    <a class="btn btn-secondary" href="{% url 'committee-letter-correct' letter.pk %}">Correction Version</a>
+    {% endif %}
+    {% if letter.status != "issued" and letter.status != "cancelled" and can_review %}
+    <a class="btn btn-danger" href="{% url 'committee-letter-cancel' letter.pk %}">Cancel</a>
+    {% endif %}
+  </div>
+</section>
+
+<section class="letter-panel">
+  <h2>Letter Details</h2>
+  <div class="letter-detail-grid">
+    <p><strong>Status</strong><br><span class="status status--{{ letter.status|slugify }}">{{ letter.get_status_display }}</span></p>
+    <p><strong>Type</strong><br>{{ letter.get_letter_type_display }}</p>
+    <p><strong>Letter date</strong><br>{{ letter.letter_date|date:"F d, Y" }}</p>
+    <p><strong>Verification code</strong><br>{{ letter.verification_code }}</p>
+    <p><strong>Recipient</strong><br>{{ letter.recipient_name }}{% if letter.recipient_position %}<span class="subtext">{{ letter.recipient_position }}</span>{% endif %}</p>
+    <p><strong>Postal address</strong><br>{{ letter.recipient_address|linebreaksbr|default:"-" }}</p>
+    <p><strong>Created by</strong><br>{{ letter.created_by|default:"-" }}</p>
+    <p><strong>Reviewed by</strong><br>{{ letter.reviewed_by|default:"-" }}</p>
+    <p><strong>Approved by</strong><br>{{ letter.approved_by|default:"-" }}</p>
+    <p><strong>Approved at</strong><br>{{ letter.approved_at|date:"F d, Y H:i"|default:"-" }}</p>
+    <p><strong>Issued at</strong><br>{{ letter.issued_at|date:"F d, Y H:i"|default:"-" }}</p>
+    <p><strong>Signatory</strong><br>{{ letter.signatory_name }}<span class="subtext">{{ letter.signatory_position }}</span></p>
+    {% if letter.review_comment %}
+    <p class="wide"><strong>Review comment</strong><br>{{ letter.review_comment }}</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="letter-panel">
+  <h2>History</h2>
+  <ul class="history-list">
+    {% for item in history %}
+    <li>
+      <strong>{{ item.get_action_display }}</strong>
+      <span class="subtext">
+        {{ item.created_at|date:"M d, Y H:i" }} by {{ item.actor|default:"System" }}
+      </span>
+      {% if item.comment %}
+      <span class="subtext">{{ item.comment }}</span>
+      {% endif %}
+    </li>
+    {% empty %}
+    <li>No history recorded yet.</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

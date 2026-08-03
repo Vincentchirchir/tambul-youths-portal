@@ -1,0 +1,90 @@
+{% extends "core/committee_letters/base.html" %}
+
+{% block title %}{{ page_title }} | Tambul Hustle{% endblock %}
+
+{% block content %}
+<section class="letter-page-header">
+  <div>
+    <h1>{{ page_title }}</h1>
+    <p class="muted">Only draft and returned letters can be edited.</p>
+  </div>
+  <div class="letter-actions">
+    <a class="btn btn-outline" href="{% url 'committee-letter-list' %}">Back to Letters</a>
+  </div>
+</section>
+
+<section class="letter-panel">
+  <form method="post" enctype="multipart/form-data" class="letter-form">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+    <div class="form-errors">{{ form.non_field_errors }}</div>
+    {% endif %}
+    <div class="letter-form-grid">
+      <label>
+        <span>Letter type</span>
+        {{ form.letter_type }}
+        {{ form.letter_type.errors }}
+      </label>
+      <label>
+        <span>Letter date</span>
+        {{ form.letter_date }}
+        {{ form.letter_date.errors }}
+      </label>
+      <label>
+        <span>Recipient name</span>
+        {{ form.recipient_name }}
+        {{ form.recipient_name.errors }}
+      </label>
+      <label>
+        <span>Recipient position</span>
+        {{ form.recipient_position }}
+        {{ form.recipient_position.errors }}
+      </label>
+      <label>
+        <span>Salutation</span>
+        {{ form.salutation }}
+        {{ form.salutation.errors }}
+      </label>
+      <label class="wide">
+        <span>Recipient postal address</span>
+        {{ form.recipient_address }}
+        {{ form.recipient_address.errors }}
+      </label>
+      <label class="wide">
+        <span>Subject</span>
+        {{ form.subject }}
+        {{ form.subject.errors }}
+      </label>
+      <label class="wide">
+        <span>Letter body</span>
+        {{ form.body }}
+        {{ form.body.errors }}
+      </label>
+      <label>
+        <span>Closing phrase</span>
+        {{ form.closing_phrase }}
+        {{ form.closing_phrase.errors }}
+      </label>
+      <label>
+        <span>Authorized signatory name</span>
+        {{ form.signatory_name }}
+        {{ form.signatory_name.errors }}
+      </label>
+      <label>
+        <span>Authorized signatory position</span>
+        {{ form.signatory_position }}
+        {{ form.signatory_position.errors }}
+      </label>
+      <label class="wide">
+        <span>Supporting attachment</span>
+        {{ form.supporting_attachment }}
+        {{ form.supporting_attachment.errors }}
+      </label>
+    </div>
+    <div class="letter-actions" style="margin-top: 16px">
+      <button class="btn" type="submit">Save Letter</button>
+      <a class="btn btn-secondary" href="{% url 'committee-letter-list' %}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

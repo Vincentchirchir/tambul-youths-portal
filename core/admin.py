@@ -1,5 +1,17 @@
 from django.contrib import admin
-from .models import Contribution, Loan, Welfare, MeetingNote, Announcement, Notification, LoanReminderLog
+from .models import (
+    CommitteeLetter,
+    CommitteeLetterAudit,
+    Contribution,
+    LetterTemplate,
+    Loan,
+    Welfare,
+    MeetingNote,
+    Announcement,
+    Notification,
+    LoanReminderLog,
+    Signatory,
+)
 
 @admin.register(Contribution)
 class ContributionAdmin(admin.ModelAdmin):
@@ -47,3 +59,70 @@ class LoanReminderLogAdmin(admin.ModelAdmin):
     list_filter = ("reminder_type", "reminder_date", "created_at")
     search_fields = ("loan__member__email", "loan__member__username")
     ordering = ("-created_at",)
+
+
+@admin.register(LetterTemplate)
+class LetterTemplateAdmin(admin.ModelAdmin):
+    list_display = ("name", "letter_type", "is_active", "created_at")
+    list_filter = ("letter_type", "is_active")
+    search_fields = ("name", "default_subject", "default_body")
+
+
+@admin.register(Signatory)
+class SignatoryAdmin(admin.ModelAdmin):
+    list_display = ("official_name", "position", "user", "is_active")
+    list_filter = ("position", "is_active")
+    search_fields = ("official_name", "position", "user__username", "user__email")
+
+
+class CommitteeLetterAuditInline(admin.TabularInline):
+    model = CommitteeLetterAudit
+    extra = 0
+    readonly_fields = (
+        "actor",
+        "action",
+        "status_from",
+        "status_to",
+        "comment",
+        "created_at",
+    )
+    can_delete = False
+
+
+@admin.register(CommitteeLetter)
+class CommitteeLetterAdmin(admin.ModelAdmin):
+    list_display = (
+        "reference_number",
+        "letter_type",
+        "recipient_name",
+        "status",
+        "version",
+        "created_by",
+        "reviewed_by",
+        "approved_by",
+        "issued_at",
+    )
+    list_filter = ("letter_type", "status", "letter_date", "approved_at", "issued_at", "created_at")
+    search_fields = (
+        "reference_number",
+        "verification_code",
+        "recipient_name",
+        "recipient_organization",
+        "subject",
+    )
+    readonly_fields = (
+        "reference_number",
+        "verification_code",
+        "created_at",
+        "updated_at",
+        "approved_at",
+    )
+    inlines = [CommitteeLetterAuditInline]
+
+
+@admin.register(CommitteeLetterAudit)
+class CommitteeLetterAuditAdmin(admin.ModelAdmin):
+    list_display = ("letter", "action", "actor", "status_from", "status_to", "created_at")
+    list_filter = ("action", "created_at")
+    search_fields = ("letter__reference_number", "actor__username", "comment")
+    readonly_fields = ("letter", "actor", "action", "status_from", "status_to", "comment", "created_at")

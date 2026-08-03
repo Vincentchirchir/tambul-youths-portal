@@ -1,0 +1,30 @@
+{% extends "core/committee_letters/base.html" %}
+
+{% block title %}Verification Result | Tambul Hustle{% endblock %}
+
+{% block content %}
+<section class="letter-page-header">
+  <div>
+    <h1>Verification Result</h1>
+    <p class="muted">{{ verification_code }}</p>
+  </div>
+  <div class="letter-actions">
+    <a class="btn btn-outline" href="{% url 'letter-verify' %}">Verify Another</a>
+  </div>
+</section>
+
+<section class="letter-panel verify-result">
+  {% if is_valid %}
+  <h2>Valid Official Letter</h2>
+  <div class="letter-detail-grid">
+    <p><strong>Reference number</strong><br>{{ letter.reference_number }}</p>
+    <p><strong>Subject</strong><br>{{ letter.subject }}</p>
+    <p><strong>Issue date</strong><br>{{ letter.official_date|date:"F d, Y" }}</p>
+    <p><strong>Status</strong><br><span class="status status--{{ letter.status|slugify }}">{{ letter.get_status_display }}</span></p>
+  </div>
+  {% else %}
+  <h2>Letter Not Valid</h2>
+  <p>No approved or issued committee letter was found for this verification code.</p>
+  {% endif %}
+</section>
+{% endblock %}

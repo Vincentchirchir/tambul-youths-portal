@@ -1,0 +1,242 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>{{ letter.reference_number }} Preview</title>
+    <style>
+      :root {
+        --stamp-date-left: 56%;
+        --stamp-date-top: 52%;
+      }
+
+      body {
+        margin: 0;
+        background: #e5e7eb;
+        font-family: Arial, sans-serif;
+        color: #111827;
+      }
+
+      .page {
+        position: relative;
+        width: 210mm;
+        min-height: 297mm;
+        margin: 20px auto;
+        padding: 22mm 19mm;
+        background: #fff;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.2);
+      }
+
+      .letterhead {
+        display: flex;
+        gap: 18px;
+        align-items: center;
+        border-bottom: 3px solid #1d4ed8;
+        padding-bottom: 14px;
+      }
+
+      .letterhead img {
+        width: 72px;
+        height: 72px;
+        object-fit: contain;
+      }
+
+      .letterhead h1 {
+        margin: 0;
+        color: #111827;
+        font-size: 23px;
+        letter-spacing: 0;
+      }
+
+      .tagline {
+        margin: 4px 0;
+        color: #dc2626;
+        font-weight: 700;
+      }
+
+      .metadata {
+        display: flex;
+        justify-content: space-between;
+        margin: 24px 0 28px;
+      }
+
+      .recipient,
+      .body,
+      .closing {
+        line-height: 1.55;
+        font-size: 14px;
+      }
+
+      .subject {
+        margin: 24px 0 18px;
+        font-weight: 800;
+        text-decoration: underline;
+      }
+
+      .closing {
+        margin-top: 32px;
+      }
+
+      .approval-band {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 12px;
+        margin-top: 10px;
+      }
+
+      .signature-block {
+        width: 240px;
+        text-align: right;
+      }
+
+      .signature-image {
+        display: block;
+        width: 240px;
+        height: 50px;
+        object-fit: contain;
+        object-position: right center;
+        margin: 0 0 10px auto;
+      }
+
+      .stamp-container {
+        position: relative;
+        width: 190px;
+        margin: 0;
+      }
+
+      .official-stamp {
+        display: block;
+        width: 190px;
+        height: auto;
+      }
+
+      .stamp-date {
+        position: absolute;
+        left: var(--stamp-date-left);
+        top: var(--stamp-date-top);
+        transform: translate(-50%, -50%);
+        font-size: 11px;
+        font-weight: 800;
+        color: #111827;
+        white-space: nowrap;
+      }
+
+      .watermark {
+        position: absolute;
+        top: 47%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-32deg);
+        color: rgba(185, 28, 28, 0.12);
+        font-size: 42px;
+        font-weight: 800;
+        white-space: nowrap;
+        pointer-events: none;
+      }
+
+      .footer {
+        position: absolute;
+        left: 19mm;
+        right: 19mm;
+        bottom: 17mm;
+        display: flex;
+        justify-content: space-between;
+        border-top: 1px solid #e5e7eb;
+        padding-top: 8px;
+        color: #475569;
+        font-size: 11px;
+      }
+
+      @page {
+        size: A4;
+        margin: 0;
+      }
+
+      @media print {
+        body {
+          background: #fff;
+        }
+
+        .page {
+          margin: 0;
+          box-shadow: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      {% if not show_stamp %}
+      <div class="watermark">DRAFT - NOT OFFICIALLY APPROVED</div>
+      {% endif %}
+
+      <header class="letterhead">
+        <img src="{% static 'images/logo.png' %}" alt="Tambul Hustle logo" />
+        <div>
+          <h1>{{ organization_name }}</h1>
+          <p class="tagline">{{ organization_tagline }}</p>
+          <div>{{ organization_address }}</div>
+        </div>
+      </header>
+
+      <section class="metadata">
+        <div><strong>Reference:</strong> {{ letter.reference_number }}</div>
+        <div><strong>Date:</strong> {{ letter.letter_date|date:"F d, Y" }}</div>
+      </section>
+
+      <section class="recipient">
+        <div>{{ letter.recipient_name }}</div>
+        {% if letter.recipient_position %}
+        <div>{{ letter.recipient_position }}</div>
+        {% endif %} {% if letter.recipient_address %}
+        <div>{{ letter.recipient_address|linebreaksbr }}</div>
+        {% endif %}
+      </section>
+
+      <section class="body">
+        <p>{{ letter.salutation }}</p>
+        <p class="subject">RE: {{ letter.subject|upper }}</p>
+        <div>{{ letter.body|linebreaksbr }}</div>
+      </section>
+
+      <section class="closing">
+        <p>{{ letter.closing_phrase }}</p>
+        {% if show_stamp %}
+        <div class="approval-band">
+          <div class="stamp-container">
+            <img
+              class="official-stamp"
+              src="{% static 'images/stamp.jpg' %}"
+              alt="Official stamp"
+            />
+            <span class="stamp-date">{{ stamp_date }}</span>
+          </div>
+          <div class="signature-block">
+            <img
+              class="signature-image"
+              src="{% static 'images/signature.png' %}"
+              alt="Authorized signature"
+            />
+            <strong>{{ letter.signatory_name|upper }}</strong><br />
+            {{ letter.signatory_position }}
+          </div>
+        </div>
+        {% else %}
+        <p>
+          <strong>{{ letter.signatory_name|upper }}</strong><br />
+          {{ letter.signatory_position }}
+        </p>
+        {% endif %}
+      </section>
+
+      <footer class="footer">
+        <span
+          >This letter was generated through the Tambul Hustle Youth Group
+          Portal.</span
+        >
+        <span>{{ letter.verification_code }}</span>
+        <span>Page 1</span>
+      </footer>
+    </main>
+  </body>
+</html>

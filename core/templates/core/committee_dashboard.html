@@ -1,5 +1,5 @@
 {% load static %}
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -20,81 +20,104 @@
   </head>
   <body>
     <!-- ========== HEADER ========== -->
-     <header class="topbar">
-        <!-- Brand Section -->
-        <div class="brand-column">
-          <div class="brand">
-            <img src="{% static 'images/logo.png' %}" alt="Tambul logo" class="brand-logo" />
-            <div class="brand-copy">
-              <h2>Tambul Hustle Youth Group</h2>
-              <span class="sub">Committee Dashboard</span>
+    <header class="topbar">
+      <!-- Brand Section -->
+      <div class="brand-column">
+        <div class="brand">
+          <img
+            src="{% static 'images/logo.png' %}"
+            alt="Tambul logo"
+            class="brand-logo"
+          />
+          <div class="brand-copy">
+            <h2>Tambul Hustle Youth Group</h2>
+            <span class="sub">Committee Dashboard</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Greeting -->
+      <div class="topbar-center">
+        <span class="topbar-greeting">Welcome, {{ user_display_name }}</span>
+      </div>
+
+      <!-- Always visible icons and actions -->
+      <div class="topbar-actions">
+        <!-- Notification -->
+        <div class="notif-container">
+          <button id="notif-btn" class="notif-btn">
+            🔔
+            <span id="notif-count" class="notif-count">
+              {% if unread_notifications %}{{ unread_notifications }}{% endif %}
+            </span>
+          </button>
+          <div id="notif-panel" class="notif-panel hidden">
+            <div class="notif-panel-actions">
+              <button
+                id="mark-all-read"
+                class="mark-all-read"
+                type="button"
+                hidden
+              >
+                Mark all read
+              </button>
             </div>
+            <div id="notif-list"></div>
+            <button id="load-more" class="load-more" hidden>Load More</button>
           </div>
         </div>
 
-        <!-- Greeting -->
-        <div class="topbar-center">
-          <span class="topbar-greeting">Welcome, {{ user_display_name }}</span>
-        </div>
+        <!-- Period filter -->
+        <form class="year-filter" method="get">
+          <select
+            class="year"
+            name="year"
+            onchange="this.form.submit()"
+            aria-label="Dashboard year"
+          >
+            {% for year in available_years %}
+            <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>
+              {{ year }}
+            </option>
+            {% endfor %}
+          </select>
+          <select
+            class="year"
+            name="month"
+            onchange="this.form.submit()"
+            aria-label="Dashboard month"
+          >
+            <option value="" {% if not selected_month %}selected{% endif %}>
+              All months
+            </option>
+            {% for month in month_options %}
+            <option value="{{ month.value }}" {% if month.value == selected_month %}selected{% endif %}>
+              {{ month.label }}
+            </option>
+            {% endfor %}
+          </select>
+        </form>
 
-        <!-- Always visible icons and actions -->
-        <div class="topbar-actions">
-          <!-- Notification -->
-          <div class="notif-container">
-            <button id="notif-btn" class="notif-btn">
-              🔔
-              <span id="notif-count" class="notif-count">{% if unread_notifications %}{{ unread_notifications }}{% endif %}</span>
-            </button>
-            <div id="notif-panel" class="notif-panel hidden">
-              <div class="notif-panel-actions">
-                <button id="mark-all-read" class="mark-all-read" type="button" hidden>
-                  Mark all read
-                </button>
-              </div>
-              <div id="notif-list"></div>
-              <button id="load-more" class="load-more" hidden>Load More</button>
-            </div>
-          </div>
+        <!-- Profile Dropdown -->
+        <div class="profile-dropdown">
+          <button class="profile-toggle">
+            <span class="profile-icon">
+              {{ user.first_name|slice:":1" }}{{ user.last_name|slice:":1" }}
+            </span>
+            <span class="profile-name">{{ user.first_name }}</span>
+            <span class="caret">▾</span>
+          </button>
 
-          <!-- Period filter -->
-          <form class="year-filter" method="get">
-            <select class="year" name="year" onchange="this.form.submit()" aria-label="Dashboard year">
-              {% for year in available_years %}
-              <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>
-                {{ year }}
-              </option>
-              {% endfor %}
-            </select>
-            <select class="year" name="month" onchange="this.form.submit()" aria-label="Dashboard month">
-              <option value="" {% if not selected_month %}selected{% endif %}>All months</option>
-              {% for month in month_options %}
-              <option value="{{ month.value }}" {% if month.value == selected_month %}selected{% endif %}>
-                {{ month.label }}
-              </option>
-              {% endfor %}
-            </select>
-          </form>
-
-          <!-- Profile Dropdown -->
-          <div class="profile-dropdown">
-            <button class="profile-toggle">
-              <span class="profile-icon">
-                {{ user.first_name|slice:":1" }}{{ user.last_name|slice:":1" }}
-              </span>
-              <span class="profile-name">{{ user.first_name }}</span>
-              <span class="caret">▾</span>
-            </button>
-
-            <div class="profile-menu hidden">
-              <a href="{% url 'profile' %}">My Profile</a>
-              <form action="{% url 'logout' %}" method="post">
-                {% csrf_token %}
-                <button type="submit">Logout</button>
-              </form>
-            </div>
+          <div class="profile-menu hidden">
+            <a href="{% url 'profile' %}">My Profile</a>
+            <form action="{% url 'logout' %}" method="post">
+              {% csrf_token %}
+              <button type="submit">Logout</button>
+            </form>
           </div>
         </div>
-      </header>
+      </div>
+    </header>
 
     <!-- ========== TABS NAVIGATION ========== -->
     <nav class="tabs-nav">
@@ -104,6 +127,7 @@
       <button class="tab-btn" data-tab="loans">Loans</button>
       <button class="tab-btn" data-tab="contributions">Contributions</button>
       <button class="tab-btn" data-tab="welfare">Welfare</button>
+      <button class="tab-btn" data-tab="letters">Letters</button>
       <button class="tab-btn" data-tab="analytics">Analytics</button>
       <button class="tab-btn" data-tab="reports">Reports</button>
     </nav>
@@ -179,6 +203,10 @@
         <div class="summary-header">
           <h3>My Summary</h3>
           <div class="loan-cta">
+            <a href="{% url 'create_payment' %}" class="btn btn-primary">Pay</a>
+            <a href="{% url 'payment_history' %}" class="btn btn-outline-info"
+              >Payment History</a
+            >
             {% if can_apply_loan %}
             <a href="{% url 'apply-loan' %}" class="btn btn-primary">
               Apply for Loan</a
@@ -214,7 +242,9 @@
 
         <!-- Announcements -->
         <section class="table-section">
-          <h3 class="section-title">Latest Announcements ({{ period_label }})</h3>
+          <h3 class="section-title">
+            Latest Announcements ({{ period_label }})
+          </h3>
           <div class="table-wrap">
             <table class="styled-table">
               <thead>
@@ -351,7 +381,9 @@
 
         <!-- Monthly Contributions -->
         <section class="table-section">
-          <h3 class="section-title">My Monthly Contributions ({{ period_label }})</h3>
+          <h3 class="section-title">
+            My Monthly Contributions ({{ period_label }})
+          </h3>
           <div class="table-wrap">
             <table class="styled-table">
               <thead>
@@ -371,7 +403,9 @@
                   <td>{{ c.amount|floatformat:2 }}</td>
                   <td>{{ c.created_at|date:"M d, Y" }}</td>
                   <td>
-                    <span class="status status--{{ c.get_status_display|slugify }}">
+                    <span
+                      class="status status--{{ c.get_status_display|slugify }}"
+                    >
                       {{ c.get_status_display }}
                     </span>
                   </td>
@@ -388,7 +422,9 @@
 
         <!-- My Welfare -->
         <section class="table-section">
-          <h3 class="section-title">My Welfare Contributions ({{ period_label }})</h3>
+          <h3 class="section-title">
+            My Welfare Contributions ({{ period_label }})
+          </h3>
           <div class="table-wrap">
             <table class="styled-table">
               <thead>
@@ -406,11 +442,13 @@
                   <td>{{ forloop.counter }}</td>
                   <td>{{ w.date_given|date:"F Y" }}</td>
                   <td>{{ w.amount|floatformat:2 }}</td>
-                <td>
-                  <span class="status status--{{ w.get_status_display|slugify }}">
-                    {{ w.get_status_display }}
-                  </span>
-                </td>
+                  <td>
+                    <span
+                      class="status status--{{ w.get_status_display|slugify }}"
+                    >
+                      {{ w.get_status_display }}
+                    </span>
+                  </td>
                   <td>{{ w.date_given|date:"M d, Y" }}</td>
                 </tr>
                 {% empty %}
@@ -425,7 +463,9 @@
 
         <!-- Reports (Meeting Minutes) -->
         <section class="table-section">
-          <h3 class="section-title">Reports & Meeting Minutes ({{ period_label }})</h3>
+          <h3 class="section-title">
+            Reports & Meeting Minutes ({{ period_label }})
+          </h3>
           <div class="table-wrap">
             <table class="styled-table">
               <thead>
@@ -506,7 +546,7 @@
           const modal = document.getElementById("announcementModal");
           const body = document.getElementById("announcement-body");
           const content = document.getElementById(
-            `announcement-content-${id}`
+            `announcement-content-${id}`,
           ).innerHTML;
           body.innerHTML = content;
           modal.style.display = "block";
@@ -621,14 +661,18 @@
                 </td>
                 <td>
                   {% if loan.status == "rejected" %}
-                  <span class="loan-amount-rejected">Ksh {{ loan.amount|floatformat:2 }}</span>
-                  {% else %}
-                  Ksh {{ loan.amount|floatformat:2 }}
-                  {% endif %}
+                  <span class="loan-amount-rejected"
+                    >Ksh {{ loan.amount|floatformat:2 }}</span
+                  >
+                  {% else %} Ksh {{ loan.amount|floatformat:2 }} {% endif %}
                 </td>
                 <td>
                   {% if user.role == "chairperson" %}
-                  <form method="post" action="{% url 'update-loan-total-paid' loan.id %}" class="loan-repaid-form">
+                  <form
+                    method="post"
+                    action="{% url 'update-loan-total-paid' loan.id %}"
+                    class="loan-repaid-form"
+                  >
                     {% csrf_token %}
                     <div class="loan-input-group">
                       <span class="loan-input-prefix">Ksh</span>
@@ -654,11 +698,8 @@
                   {% endif %}
                 </td>
                 <td>
-                  {% if loan.status == "rejected" %}
-                  Ksh 0.00
-                  {% else %}
-                  Ksh {{ loan.current_balance|floatformat:2 }}
-                  {% endif %}
+                  {% if loan.status == "rejected" %} Ksh 0.00 {% else %} Ksh {{
+                  loan.current_balance|floatformat:2 }} {% endif %}
                 </td>
 
                 <!-- Approval -->
@@ -698,10 +739,21 @@
                       >Reject</a
                     >
                   </div>
-                  <select class="loan-select" onchange="if (this.value) window.location = this.value;">
+                  <select
+                    class="loan-select"
+                    onchange="if (this.value) window.location = this.value;"
+                  >
                     <option value="">Update approval...</option>
-                    <option value="{% url 'mark-loan-status' loan.id 'approved' %}">Approve</option>
-                    <option value="{% url 'mark-loan-status' loan.id 'rejected' %}">Reject</option>
+                    <option
+                      value="{% url 'mark-loan-status' loan.id 'approved' %}"
+                    >
+                      Approve
+                    </option>
+                    <option
+                      value="{% url 'mark-loan-status' loan.id 'rejected' %}"
+                    >
+                      Reject
+                    </option>
                   </select>
                 </td>
                 <td class="actions-col">
@@ -722,11 +774,26 @@
                       >Not Paid</a
                     >
                   </div>
-                  <select class="loan-select" onchange="if (this.value) window.location = this.value;">
+                  <select
+                    class="loan-select"
+                    onchange="if (this.value) window.location = this.value;"
+                  >
                     <option value="">Update repayment...</option>
-                    <option value="{% url 'mark-loan-paid' loan.id 'fully_paid' %}">Fully Paid</option>
-                    <option value="{% url 'mark-loan-paid' loan.id 'partially_paid' %}">Partial</option>
-                    <option value="{% url 'mark-loan-paid' loan.id 'not_paid' %}">Not Paid</option>
+                    <option
+                      value="{% url 'mark-loan-paid' loan.id 'fully_paid' %}"
+                    >
+                      Fully Paid
+                    </option>
+                    <option
+                      value="{% url 'mark-loan-paid' loan.id 'partially_paid' %}"
+                    >
+                      Partial
+                    </option>
+                    <option
+                      value="{% url 'mark-loan-paid' loan.id 'not_paid' %}"
+                    >
+                      Not Paid
+                    </option>
                   </select>
                 </td>
                 {% endif %}
@@ -789,7 +856,11 @@
                 <td>{{ c.member.first_name }} {{ c.member.last_name }}</td>
                 <td>
                   {% if user.role == "treasurer" %}
-                  <form method="post" action="{% url 'update-contrib-amount' c.id %}" class="loan-repaid-form">
+                  <form
+                    method="post"
+                    action="{% url 'update-contrib-amount' c.id %}"
+                    class="loan-repaid-form"
+                  >
                     {% csrf_token %}
                     <input
                       type="number"
@@ -802,15 +873,15 @@
                     />
                     <button type="submit" class="btn btn-small">Save</button>
                   </form>
-                  {% else %}
-                  {{ c.amount|floatformat:2 }}
-                  {% endif %}
+                  {% else %} {{ c.amount|floatformat:2 }} {% endif %}
                 </td>
                 <td>{{ c.month|date:"F Y" }}</td>
                 <td>{{ c.created_at|date:"M d, Y" }}</td>
 
                 <td>
-                  <span class="status status--{{ c.get_status_display|slugify }}">
+                  <span
+                    class="status status--{{ c.get_status_display|slugify }}"
+                  >
                     {{ c.get_status_display }}
                   </span>
                 </td>
@@ -836,11 +907,24 @@
                       >Late</a
                     >
                   </div>
-                  <select class="action-select" onchange="if (this.value) window.location = this.value;">
+                  <select
+                    class="action-select"
+                    onchange="if (this.value) window.location = this.value;"
+                  >
                     <option value="">Update status...</option>
-                    <option value="{% url 'mark-contrib-status' c.id 'fully_paid' %}">Fully Paid</option>
-                    <option value="{% url 'mark-contrib-status' c.id 'partially_paid' %}">Partial</option>
-                    <option value="{% url 'mark-contrib-status' c.id 'late' %}">Late</option>
+                    <option
+                      value="{% url 'mark-contrib-status' c.id 'fully_paid' %}"
+                    >
+                      Fully Paid
+                    </option>
+                    <option
+                      value="{% url 'mark-contrib-status' c.id 'partially_paid' %}"
+                    >
+                      Partial
+                    </option>
+                    <option value="{% url 'mark-contrib-status' c.id 'late' %}">
+                      Late
+                    </option>
                   </select>
                 </td>
                 {% endif %}
@@ -884,7 +968,11 @@
                 <td>{{ w.member.first_name }} {{ w.member.last_name }}</td>
                 <td>
                   {% if user.role == "welfare" %}
-                  <form method="post" action="{% url 'update-welfare-amount' w.id %}" class="loan-repaid-form">
+                  <form
+                    method="post"
+                    action="{% url 'update-welfare-amount' w.id %}"
+                    class="loan-repaid-form"
+                  >
                     {% csrf_token %}
                     <input
                       type="number"
@@ -897,13 +985,13 @@
                     />
                     <button type="submit" class="btn btn-small">Save</button>
                   </form>
-                  {% else %}
-                  {{ w.amount|floatformat:2 }}
-                  {% endif %}
+                  {% else %} {{ w.amount|floatformat:2 }} {% endif %}
                 </td>
                 <td>{{ w.description }}</td>
                 <td>
-                  <span class="status status--{{ w.get_status_display|slugify }}">
+                  <span
+                    class="status status--{{ w.get_status_display|slugify }}"
+                  >
                     {{ w.get_status_display }}
                   </span>
                 </td>
@@ -933,12 +1021,29 @@
                       >Late</a
                     >
                   </div>
-                  <select class="action-select" onchange="if (this.value) window.location = this.value;">
+                  <select
+                    class="action-select"
+                    onchange="if (this.value) window.location = this.value;"
+                  >
                     <option value="">Update status...</option>
-                    <option value="{% url 'mark-welfare-status' w.id 'fully_paid' %}">Fully Paid</option>
-                    <option value="{% url 'mark-welfare-status' w.id 'partially_paid' %}">Partial</option>
-                    <option value="{% url 'mark-welfare-status' w.id 'not_paid' %}">Not Paid</option>
-                    <option value="{% url 'mark-welfare-status' w.id 'late' %}">Late</option>
+                    <option
+                      value="{% url 'mark-welfare-status' w.id 'fully_paid' %}"
+                    >
+                      Fully Paid
+                    </option>
+                    <option
+                      value="{% url 'mark-welfare-status' w.id 'partially_paid' %}"
+                    >
+                      Partial
+                    </option>
+                    <option
+                      value="{% url 'mark-welfare-status' w.id 'not_paid' %}"
+                    >
+                      Not Paid
+                    </option>
+                    <option value="{% url 'mark-welfare-status' w.id 'late' %}">
+                      Late
+                    </option>
                   </select>
                 </td>
                 {% endif %}
@@ -953,6 +1058,140 @@
         </div>
       </section>
 
+      <!--  LETTERS -->
+      <section id="letters" class="tab-section">
+        <div class="letters-header">
+          <div>
+            <h3>Letters</h3>
+            <p class="muted">
+              Official letters for committee approvals and notices.
+            </p>
+          </div>
+          <div class="letter-actions">
+            <a class="btn btn-primary" href="{% url 'committee-letter-create' %}">
+              Create New Letter
+            </a>
+            <a class="btn btn-outline-info" href="{% url 'committee-letter-list' %}">
+              Letter Dashboard
+            </a>
+          </div>
+        </div>
+
+        <div class="letter-status-grid">
+          {% for item in letter_status_cards %}
+          <div class="letter-status-card">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.total }}</strong>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="table-wrap">
+          <table class="styled-table">
+            <thead>
+              <tr>
+                <th>Reference</th>
+                <th>Type</th>
+                <th>Recipient</th>
+                <th>Subject</th>
+                <th>Status</th>
+                <th>Signatory</th>
+                <th>Approval</th>
+                <th>Verification</th>
+                <th class="actions-col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for letter in committee_letters %}
+              <tr>
+                <td>
+                  {{ letter.reference_number }}
+                  <span class="table-subtext">Version {{ letter.version }}</span>
+                  {% if letter.supersedes %}
+                  <span class="table-subtext">
+                    Replaces {{ letter.supersedes.reference_number }}
+                  </span>
+                  {% endif %}
+                </td>
+                <td>{{ letter.get_letter_type_display }}</td>
+                <td>
+                  <strong>{{ letter.recipient_name }}</strong>
+                  {% if letter.recipient_position %}
+                  <span class="table-subtext">
+                    {{ letter.recipient_position }}
+                  </span>
+                  {% endif %}
+                </td>
+                <td>{{ letter.subject }}</td>
+                <td>
+                  <span class="status status--{{ letter.status|slugify }}">
+                    {{ letter.get_status_display }}
+                  </span>
+                </td>
+                <td>
+                  {{ letter.signatory_name }}
+                  <span class="table-subtext">
+                    {{ letter.signatory_position }}
+                  </span>
+                </td>
+                <td>
+                  {% if letter.approved_by %}
+                  {% if letter.approved_by.get_full_name %}
+                  {{ letter.approved_by.get_full_name }}
+                  {% else %}
+                  {{ letter.approved_by.username }}
+                  {% endif %}
+                  <span class="table-subtext">
+                    {{ letter.approved_at|date:"M d, Y" }}
+                  </span>
+                  {% else %}
+                  —
+                  {% endif %}
+                </td>
+                <td>{{ letter.verification_code }}</td>
+                <td class="actions-col">
+                  <div class="letter-actions">
+                    <a
+                      href="{% url 'committee-letter-detail' letter.id %}"
+                      class="btn btn-small btn-outline-info"
+                    >
+                      View
+                    </a>
+                    <a
+                      href="{% url 'committee-letter-preview' letter.id %}"
+                      class="btn btn-small btn-outline-info"
+                    >
+                      Preview
+                    </a>
+                    {% if letter.status == "approved" or letter.status == "issued" %}
+                    {% if can_issue_letters %}
+                    <a
+                      href="{% url 'committee-letter-generate-pdf' letter.id %}"
+                      class="btn btn-small btn-outline-info"
+                    >
+                      Regenerate
+                    </a>
+                    {% endif %}
+                    <a
+                      href="{% url 'committee-letter-pdf' letter.id %}"
+                      class="btn btn-small"
+                    >
+                      PDF
+                    </a>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="9" class="empty">No committee letters yet</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <!--  ANALYTICS -->
       <section id="analytics" class="tab-section">
         <h3>Analytics Overview</h3>
@@ -960,7 +1199,10 @@
           <div class="chart-box">
             <h4>Monthly Contributions ({{ period_label }})</h4>
             <canvas id="contribChart"></canvas>
-            <div id="contribChartSummary" class="chart-summary-table-wrap"></div>
+            <div
+              id="contribChartSummary"
+              class="chart-summary-table-wrap"
+            ></div>
           </div>
 
           <div class="chart-box">
@@ -972,13 +1214,19 @@
           <div class="chart-box">
             <h4>Welfare Summary by Status</h4>
             <canvas id="welfareChart"></canvas>
-            <div id="welfareChartSummary" class="chart-summary-table-wrap"></div>
+            <div
+              id="welfareChartSummary"
+              class="chart-summary-table-wrap"
+            ></div>
           </div>
 
           <div class="chart-box">
             <h4>Top 5 Approved Loan Applicants ({{ period_label }})</h4>
             <canvas id="topContribChart"></canvas>
-            <div id="topApplicantsSummary" class="chart-summary-table-wrap"></div>
+            <div
+              id="topApplicantsSummary"
+              class="chart-summary-table-wrap"
+            ></div>
           </div>
         </div>
       </section>
@@ -1016,9 +1264,7 @@
 
     <!-- ========== FOOTER ========== -->
     <footer class="footer">
-      <p>
-        © {% now "Y" %} Tambul Hustle Youth Group. All Rights Reserved.
-      </p>
+      <p>© {% now "Y" %} Tambul Hustle Youth Group. All Rights Reserved.</p>
     </footer>
 
     <!-- ========== SCRIPT (Tab Logic) ========== -->
@@ -1042,14 +1288,28 @@
         tabScrollHint.hidden = atEnd;
       };
 
+      const activateTab = (tab) => {
+        if (!tab) return;
+        const section = document.getElementById(tab.dataset.tab);
+        if (!section) return;
+
+        tabs.forEach((btn) => btn.classList.remove("active"));
+        sections.forEach((sec) => sec.classList.remove("active"));
+
+        tab.classList.add("active");
+        section.classList.add("active");
+        updateTabScrollHint();
+      };
+
       tabs.forEach((tab) => {
         tab.addEventListener("click", () => {
           tabs.forEach((btn) => btn.classList.remove("active"));
           sections.forEach((sec) => sec.classList.remove("active"));
 
-          tab.classList.add("active");
-          document.getElementById(tab.dataset.tab).classList.add("active");
-          updateTabScrollHint();
+          activateTab(tab);
+          if (history.replaceState) {
+            history.replaceState(null, "", `#${tab.dataset.tab}`);
+          }
         });
       });
 
@@ -1073,10 +1333,14 @@
             behavior: "smooth",
           });
         },
-        { passive: false }
+        { passive: false },
       );
 
       window.addEventListener("resize", updateTabScrollHint);
+      const initialTab = window.location.hash.replace("#", "");
+      if (initialTab) {
+        activateTab(document.querySelector(`.tab-btn[data-tab="${initialTab}"]`));
+      }
       updateTabScrollHint();
     </script>
 
@@ -1123,7 +1387,12 @@
       };
       const createVerticalGradient = (context, area, color) => {
         if (!area) return color;
-        const gradient = context.createLinearGradient(0, area.top, 0, area.bottom);
+        const gradient = context.createLinearGradient(
+          0,
+          area.top,
+          0,
+          area.bottom,
+        );
         gradient.addColorStop(0, color);
         gradient.addColorStop(1, darkenColor(color, 0.72));
         return gradient;
@@ -1150,7 +1419,7 @@
             ? dataset.borderColor
             : loanStatusColors;
           const shadowColors = baseColors.map((color) =>
-            darkenColor(color, 0.72)
+            darkenColor(color, 0.72),
           );
 
           ctx.save();
@@ -1158,15 +1427,22 @@
           arcs.forEach((arc, index) => {
             const { x, y, startAngle, endAngle, outerRadius, innerRadius } =
               arc.getProps(
-                ["x", "y", "startAngle", "endAngle", "outerRadius", "innerRadius"],
-                true
+                [
+                  "x",
+                  "y",
+                  "startAngle",
+                  "endAngle",
+                  "outerRadius",
+                  "innerRadius",
+                ],
+                true,
               );
 
             ctx.beginPath();
             ctx.fillStyle = shadowColors[index] || "#334155";
             ctx.moveTo(
               x + Math.cos(startAngle) * outerRadius,
-              y + Math.sin(startAngle) * outerRadius
+              y + Math.sin(startAngle) * outerRadius,
             );
             ctx.arc(x, y, outerRadius, startAngle, endAngle);
             ctx.arc(x, y, innerRadius, endAngle, startAngle, true);
@@ -1185,11 +1461,11 @@
           const ctx = chart.ctx;
           const totalLoans = chart.data.datasets[0].data.reduce(
             (sum, value) => sum + Number(value || 0),
-            0
+            0,
           );
           const { x, y, innerRadius } = firstArc.getProps(
             ["x", "y", "innerRadius"],
-            true
+            true,
           );
 
           ctx.save();
@@ -1210,7 +1486,12 @@
           ctx.restore();
         },
       };
-      const renderSummaryTable = ({ container, headers, rows, emptyMessage }) => {
+      const renderSummaryTable = ({
+        container,
+        headers,
+        rows,
+        emptyMessage,
+      }) => {
         if (!container) return;
 
         if (!rows.length) {
@@ -1223,7 +1504,7 @@
         const headerMarkup = headers
           .map(
             ({ label, align = "left" }) =>
-              `<th class="chart-summary-table__head chart-summary-table__head--${align}">${label}</th>`
+              `<th class="chart-summary-table__head chart-summary-table__head--${align}">${label}</th>`,
           )
           .join("");
 
@@ -1234,11 +1515,11 @@
                 ${cells
                   .map(
                     ({ content, align = "left" }) =>
-                      `<td class="chart-summary-table__cell chart-summary-table__cell--${align}">${content}</td>`
+                      `<td class="chart-summary-table__cell chart-summary-table__cell--${align}">${content}</td>`,
                   )
                   .join("")}
               </tr>
-            `
+            `,
           )
           .join("");
 
@@ -1282,9 +1563,13 @@
         ],
         rows: monthlyLabels.map((label, index) => [
           { content: label },
-          { content: formatCurrency(monthlyValues[index] ?? 0), align: "right" },
+          {
+            content: formatCurrency(monthlyValues[index] ?? 0),
+            align: "right",
+          },
         ]),
-        emptyMessage: "No contribution data available for {{ period_label }} yet.",
+        emptyMessage:
+          "No contribution data available for {{ period_label }} yet.",
       });
 
       const loanSummary = document.getElementById("loanChartSummary");
@@ -1319,7 +1604,7 @@
                 return createVerticalGradient(
                   chart.ctx,
                   chart.chartArea,
-                  color
+                  color,
                 );
               },
               borderColor: loanStatusColors,
@@ -1384,7 +1669,10 @@
           {
             content: `<span class="chart-summary-label"><span class="chart-summary-dot" style="background:${welfareStatusColors[index % welfareStatusColors.length]};"></span>${formatStatusLabel(label)}</span>`,
           },
-          { content: formatCurrency(welfareTotals[index] ?? 0), align: "right" },
+          {
+            content: formatCurrency(welfareTotals[index] ?? 0),
+            align: "right",
+          },
         ]),
         emptyMessage: "No welfare data available yet.",
       });
@@ -1405,7 +1693,9 @@
         options: { responsive: true, plugins: { legend: { display: false } } },
       });
 
-      const topApplicantsSummary = document.getElementById("topApplicantsSummary");
+      const topApplicantsSummary = document.getElementById(
+        "topApplicantsSummary",
+      );
       renderSummaryTable({
         container: topApplicantsSummary,
         headers: [
@@ -1414,232 +1704,241 @@
         ],
         rows: topContributors.map((name, index) => [
           { content: name },
-          { content: formatCurrency(topContribValues[index] ?? 0), align: "right" },
+          {
+            content: formatCurrency(topContribValues[index] ?? 0),
+            align: "right",
+          },
         ]),
-        emptyMessage: "No loan applications recorded for {{ period_label }} yet.",
+        emptyMessage:
+          "No loan applications recorded for {{ period_label }} yet.",
       });
     </script>
     <script>
+      //  NOTIFICATION SYSTEM + PROFILE MENU
+      const bell = document.getElementById("notif-btn");
+      const panel = document.getElementById("notif-panel");
+      const notifList = document.getElementById("notif-list");
+      const badge = document.getElementById("notif-count");
+      const loadMoreBtn = document.getElementById("load-more");
+      const markAllReadBtn = document.getElementById("mark-all-read");
+      const profileToggle = document.querySelector(".profile-toggle");
+      const profileMenu = document.querySelector(".profile-menu");
+      const markAllReadUrl = "{% url 'mark_notifications_read_all' %}";
+      const csrfToken = "{{ csrf_token }}";
 
-  //  NOTIFICATION SYSTEM + PROFILE MENU
-  const bell = document.getElementById("notif-btn");
-  const panel = document.getElementById("notif-panel");
-  const notifList = document.getElementById("notif-list");
-  const badge = document.getElementById("notif-count");
-  const loadMoreBtn = document.getElementById("load-more");
-  const markAllReadBtn = document.getElementById("mark-all-read");
-  const profileToggle = document.querySelector(".profile-toggle");
-  const profileMenu = document.querySelector(".profile-menu");
-  const markAllReadUrl = "{% url 'mark_notifications_read_all' %}";
-  const csrfToken = "{{ csrf_token }}";
+      let nextPage = 1;
 
-  let nextPage = 1;
-
-  const openNotifPanel = () => {
-    if (!panel) return;
-    panel.classList.remove("hidden");
-    panel.classList.remove("is-closing");
-    requestAnimationFrame(() => panel.classList.add("active"));
-  };
-
-  const closeNotifPanel = () => {
-    if (!panel) return;
-    if (!panel.classList.contains("active")) {
-      panel.classList.add("hidden");
-      panel.classList.remove("is-closing");
-      return;
-    }
-
-    function finalize() {
-      panel.removeEventListener("transitionend", handleTransitionEnd);
-      if (!panel.classList.contains("active")) {
-        panel.classList.add("hidden");
+      const openNotifPanel = () => {
+        if (!panel) return;
+        panel.classList.remove("hidden");
         panel.classList.remove("is-closing");
-      }
-    }
+        requestAnimationFrame(() => panel.classList.add("active"));
+      };
 
-    function handleTransitionEnd(event) {
-      if (event.target !== panel) return;
-      finalize();
-    }
+      const closeNotifPanel = () => {
+        if (!panel) return;
+        if (!panel.classList.contains("active")) {
+          panel.classList.add("hidden");
+          panel.classList.remove("is-closing");
+          return;
+        }
 
-    panel.classList.add("is-closing");
-    panel.addEventListener("transitionend", handleTransitionEnd);
-    panel.classList.remove("active");
-    window.setTimeout(finalize, 280);
-  };
+        function finalize() {
+          panel.removeEventListener("transitionend", handleTransitionEnd);
+          if (!panel.classList.contains("active")) {
+            panel.classList.add("hidden");
+            panel.classList.remove("is-closing");
+          }
+        }
 
-  // --- Update badge ---
-  const updateBadge = (count) => {
-    if (!badge) return;
-    if (count > 0) {
-      badge.textContent = count;
-      badge.style.display = "inline-block";
-      bell.classList.add("has-unread");
-    } else {
-      badge.textContent = "";
-      badge.style.display = "none";
-      bell.classList.remove("has-unread");
-    }
-  };
+        function handleTransitionEnd(event) {
+          if (event.target !== panel) return;
+          finalize();
+        }
 
-  // --- Load notifications ---
-  function loadNotifications(reset = false) {
-    const url = new URL("{% url 'notification_fetch' %}", window.location.origin);
-    url.searchParams.set("page", nextPage || 1);
+        panel.classList.add("is-closing");
+        panel.addEventListener("transitionend", handleTransitionEnd);
+        panel.classList.remove("active");
+        window.setTimeout(finalize, 280);
+      };
 
-    fetch(url)
-      .then(res => res.json())
-      .then(data => {
-        if (reset) notifList.innerHTML = "";
-
-        if (!data.notifications || data.notifications.length === 0) {
-          notifList.innerHTML = `<div class="notif-empty">No notifications yet</div>`;
-          loadMoreBtn.hidden = true;
+      // --- Update badge ---
+      const updateBadge = (count) => {
+        if (!badge) return;
+        if (count > 0) {
+          badge.textContent = count;
+          badge.style.display = "inline-block";
+          bell.classList.add("has-unread");
         } else {
-          data.notifications.forEach(n => {
-            const div = document.createElement("a");
-            div.href = n.link || "#";
-            div.target = "_blank";
-            div.className = "notif-item" + (n.is_read ? " notif-item--read" : "");
-            div.dataset.id = n.id;
-            div.innerHTML = `
+          badge.textContent = "";
+          badge.style.display = "none";
+          bell.classList.remove("has-unread");
+        }
+      };
+
+      // --- Load notifications ---
+      function loadNotifications(reset = false) {
+        const url = new URL(
+          "{% url 'notification_fetch' %}",
+          window.location.origin,
+        );
+        url.searchParams.set("page", nextPage || 1);
+
+        fetch(url)
+          .then((res) => res.json())
+          .then((data) => {
+            if (reset) notifList.innerHTML = "";
+
+            if (!data.notifications || data.notifications.length === 0) {
+              notifList.innerHTML = `<div class="notif-empty">No notifications yet</div>`;
+              loadMoreBtn.hidden = true;
+            } else {
+              data.notifications.forEach((n) => {
+                const div = document.createElement("a");
+                div.href = n.link || "#";
+                div.target = "_blank";
+                div.className =
+                  "notif-item" + (n.is_read ? " notif-item--read" : "");
+                div.dataset.id = n.id;
+                div.innerHTML = `
               <p class="notif-title">${n.title}</p>
               <p class="notif-msg">${n.message}</p>
               <small>${n.created_at}</small>
             `;
-            notifList.appendChild(div);
-          });
+                notifList.appendChild(div);
+              });
 
-          if (data.has_next) {
-            nextPage = data.next_page;
-            loadMoreBtn.hidden = false;
-          } else {
-            nextPage = null;
-            loadMoreBtn.hidden = true;
-          }
+              if (data.has_next) {
+                nextPage = data.next_page;
+                loadMoreBtn.hidden = false;
+              } else {
+                nextPage = null;
+                loadMoreBtn.hidden = true;
+              }
+            }
+
+            updateBadge(data.unread_count || 0);
+            if (markAllReadBtn)
+              markAllReadBtn.hidden = !(data.unread_count > 0);
+          })
+          .catch(() => {
+            notifList.innerHTML = `<div class="notif-empty">Unable to load notifications</div>`;
+          });
+      }
+
+      // --- Click: open/close bell ---
+      bell.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const isOpen = panel.classList.contains("active");
+        const isClosing = panel.classList.contains("is-closing");
+        const shouldOpen = !isOpen || isClosing;
+
+        if (profileMenu && !profileMenu.classList.contains("hidden")) {
+          profileMenu.classList.add("hidden");
         }
 
-        updateBadge(data.unread_count || 0);
-        if (markAllReadBtn) markAllReadBtn.hidden = !(data.unread_count > 0);
-      })
-      .catch(() => {
-        notifList.innerHTML = `<div class="notif-empty">Unable to load notifications</div>`;
-      });
-  }
-
-  // --- Click: open/close bell ---
-  bell.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const isOpen = panel.classList.contains("active");
-    const isClosing = panel.classList.contains("is-closing");
-    const shouldOpen = !isOpen || isClosing;
-
-    if (profileMenu && !profileMenu.classList.contains("hidden")) {
-      profileMenu.classList.add("hidden");
-    }
-
-    if (shouldOpen) {
-      openNotifPanel();
-      nextPage = 1;
-      loadNotifications(true);
-    } else {
-      closeNotifPanel();
-    }
-  });
-
-  // --- Click: load more ---
-  loadMoreBtn.addEventListener("click", () => {
-    if (nextPage) loadNotifications(false);
-  });
-
-  if (markAllReadBtn) {
-    markAllReadBtn.addEventListener("click", (event) => {
-      event.stopPropagation();
-      markAllReadBtn.disabled = true;
-
-      fetch(markAllReadUrl, {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": csrfToken,
-          "X-Requested-With": "XMLHttpRequest",
-        },
-      })
-        .then((res) => {
-          if (!res.ok) throw new Error("Unable to mark notifications read");
-          return res.json();
-        })
-        .then((data) => {
-          notifList.querySelectorAll(".notif-item").forEach((item) => {
-            item.classList.add("notif-item--read");
-          });
-          updateBadge(data.unread_count || 0);
-          markAllReadBtn.hidden = true;
+        if (shouldOpen) {
+          openNotifPanel();
           nextPage = 1;
           loadNotifications(true);
-        })
-        .catch(() => {
-          markAllReadBtn.disabled = false;
-        })
-        .finally(() => {
-          markAllReadBtn.disabled = false;
+        } else {
+          closeNotifPanel();
+        }
+      });
+
+      // --- Click: load more ---
+      loadMoreBtn.addEventListener("click", () => {
+        if (nextPage) loadNotifications(false);
+      });
+
+      if (markAllReadBtn) {
+        markAllReadBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          markAllReadBtn.disabled = true;
+
+          fetch(markAllReadUrl, {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": csrfToken,
+              "X-Requested-With": "XMLHttpRequest",
+            },
+          })
+            .then((res) => {
+              if (!res.ok) throw new Error("Unable to mark notifications read");
+              return res.json();
+            })
+            .then((data) => {
+              notifList.querySelectorAll(".notif-item").forEach((item) => {
+                item.classList.add("notif-item--read");
+              });
+              updateBadge(data.unread_count || 0);
+              markAllReadBtn.hidden = true;
+              nextPage = 1;
+              loadNotifications(true);
+            })
+            .catch(() => {
+              markAllReadBtn.disabled = false;
+            })
+            .finally(() => {
+              markAllReadBtn.disabled = false;
+            });
         });
-    });
-  }
+      }
 
-  // --- Click: mark read & open link ---
-  notifList.addEventListener("click", (event) => {
-    const item = event.target.closest(".notif-item");
-    if (!item) return;
+      // --- Click: mark read & open link ---
+      notifList.addEventListener("click", (event) => {
+        const item = event.target.closest(".notif-item");
+        if (!item) return;
 
-    const id = item.dataset.id;
-    const link = item.getAttribute("href");
+        const id = item.dataset.id;
+        const link = item.getAttribute("href");
 
-    item.classList.add("notif-item--read");
-    const current = parseInt((badge && badge.textContent) || "0", 10) || 0;
-    updateBadge(Math.max(current - 1, 0));
+        item.classList.add("notif-item--read");
+        const current = parseInt((badge && badge.textContent) || "0", 10) || 0;
+        updateBadge(Math.max(current - 1, 0));
 
-    if (id) fetch(`/notifications/read/${id}/`);
-    if (link && link !== "#") window.open(link, "_blank");
+        if (id) fetch(`/notifications/read/${id}/`);
+        if (link && link !== "#") window.open(link, "_blank");
 
-    closeNotifPanel();
-  });
+        closeNotifPanel();
+      });
 
+      // --- WebSocket live updates ---
+      const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+      const socket = new WebSocket(
+        `${wsProtocol}://${window.location.host}/ws/notifications/`,
+      );
+      socket.onmessage = (e) => {
+        const current = parseInt((badge && badge.textContent) || "0", 10) || 0;
+        updateBadge(current + 1);
+        nextPage = 1;
+        loadNotifications(true);
+      };
 
-  // --- WebSocket live updates ---
-  const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
-  const socket = new WebSocket(`${wsProtocol}://${window.location.host}/ws/notifications/`);
-  socket.onmessage = (e) => {
-    const current = parseInt((badge && badge.textContent) || "0", 10) || 0;
-    updateBadge(current + 1);
-    nextPage = 1;
-    loadNotifications(true);
-  };
+      // --- Profile toggle ---
+      if (profileToggle && profileMenu) {
+        profileToggle.addEventListener("click", (e) => {
+          e.stopPropagation();
+          profileMenu.classList.toggle("hidden");
 
-  // --- Profile toggle ---
-  if (profileToggle && profileMenu) {
-    profileToggle.addEventListener("click", (e) => {
-      e.stopPropagation();
-      profileMenu.classList.toggle("hidden");
+          closeNotifPanel();
+        });
+      }
 
-      closeNotifPanel();
-    });
-  }
+      document.addEventListener("click", (event) => {
+        if (
+          !bell.contains(event.target) &&
+          !panel.contains(event.target) &&
+          (!profileToggle || !profileToggle.contains(event.target)) &&
+          (!profileMenu || !profileMenu.contains(event.target))
+        ) {
+          closeNotifPanel();
+          if (profileMenu) profileMenu.classList.add("hidden");
+        }
+      });
 
-  document.addEventListener("click", (event) => {
-    if (
-      !bell.contains(event.target) &&
-      !panel.contains(event.target) &&
-      (!profileToggle || !profileToggle.contains(event.target)) &&
-      (!profileMenu || !profileMenu.contains(event.target))
-    ) {
-      closeNotifPanel();
-      if (profileMenu) profileMenu.classList.add("hidden");
-    }
-  });
-
-  loadNotifications(true);
-  setInterval(() => loadNotifications(true), 60000);
-</script>
+      loadNotifications(true);
+      setInterval(() => loadNotifications(true), 60000);
+    </script>
   </body>
 </html>

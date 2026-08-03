@@ -3,10 +3,29 @@ from django.views.generic.edit import FormView, UpdateView
 from django.urls import reverse_lazy, reverse
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Sum, F, ExpressionWrapper, DecimalField, Case, When, Value, Count
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from.models import Contribution, Loan, Welfare, Announcement, MeetingNote, Notification
-from .forms import ContributionForm, LoanApplicationForm, AnnouncementForm, MeetingNoteForm
+from.models import (
+    CommitteeLetter,
+    CommitteeLetterAudit,
+    Contribution,
+    Loan,
+    Welfare,
+    Announcement,
+    MeetingNote,
+    Notification,
+)
+from .forms import (
+    CommitteeLetterCommentForm,
+    CommitteeLetterForm,
+    CommitteeLetterReturnForm,
+    ContributionForm,
+    LetterVerificationForm,
+    LoanApplicationForm,
+    AnnouncementForm,
+    MeetingNoteForm,
+)
 from django.shortcuts import render, redirect, get_object_or_404
 import requests
 from django.conf import settings
@@ -15,7 +34,8 @@ from accounts.forms import ProfileForm
 from django.db.models.functions import TruncMonth
 import csv
 from django .contrib import messages
-from django.http import HttpResponse, HttpResponseForbidden
+from django.http import FileResponse, HttpResponse, HttpResponseForbidden
+from django.core.files.base import ContentFile
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfgen import canvas
 from django.contrib.staticfiles import finders
@@ -31,6 +51,27 @@ from .services.notifications import (
     normalize_notification_link,
     notify_users,
 )
+from .services.committee_letters import (
+    committee_letter_pdf_filename,
+    generate_committee_letter_pdf,
+    letter_render_context,
+)
+from .services.committee_letter_workflow import (
+    can_approve_letters,
+    can_edit_letter,
+    can_issue_letters,
+    can_review_letters,
+    approve_letter,
+    cancel_letter,
+    create_correction_draft,
+    ensure_allowed,
+    is_committee_user,
+    issue_letter,
+    record_audit,
+    return_letter,
+    submit_letter,
+)
+from .models import LetterAuditAction
 from django.templatetags.static import static
 
 COMMITTEE_ROLES = {
@@ -43,6 +84,22 @@ COMMITTEE_ROLES = {
     "coordinator",
     "admin",
     "committee",
+}
+
+LETTER_REVIEW_ROLES = {
+    "chairperson",
+    "vice-chairperson",
+    "secretary",
+    "vice-secretary",
+    "admin",
+}
+
+LETTER_APPROVER_ROLES = {
+    "chairperson",
+}
+
+LETTER_ISSUER_ROLES = {
+    "chairperson",
 }
 
 
@@ -461,8 +518,447 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         }
         ctx["chart_datasets_json"] = json.dumps(ctx["chart_datasets"])
 
+        letters = (
+            CommitteeLetter.objects.select_related(
+                "created_by",
+                "approved_by",
+                "signatory",
+            )
+            .all()
+            .order_by("-created_at")
+        )
+        status_totals = {
+            row["status"]: row["total"]
+            for row in letters.values("status").annotate(total=Count("id"))
+        }
+        ctx["letter_form"] = CommitteeLetterForm()
+        ctx["committee_letters"] = letters[:50]
+        ctx["letter_status_cards"] = [
+            {
+                "status": status,
+                "label": label,
+                "total": status_totals.get(status, 0),
+            }
+            for status, label in CommitteeLetter.STATUS_CHOICES
+        ]
+        ctx["can_review_letters"] = user.role in LETTER_REVIEW_ROLES
+        ctx["can_approve_letters"] = user.role in LETTER_APPROVER_ROLES
+        ctx["can_issue_letters"] = user.role in LETTER_ISSUER_ROLES
 
         return ctx
+
+
+class CommitteeLetterAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
+    def test_func(self):
+        return is_committee_user(self.request.user)
+
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated:
+            return HttpResponseForbidden("You are not authorized to access committee letters.")
+        return super().handle_no_permission()
+
+
+def committee_letters_redirect():
+    return reverse("committee-letter-list")
+
+
+def get_committee_letter(pk):
+    return get_object_or_404(
+        CommitteeLetter.objects.select_related(
+            "created_by",
+            "reviewed_by",
+            "approved_by",
+            "signatory",
+            "supersedes",
+        ),
+        pk=pk,
+    )
+
+
+def save_official_pdf(letter, actor):
+    pdf_bytes = generate_committee_letter_pdf(letter)
+    letter.pdf_file.save(
+        committee_letter_pdf_filename(letter),
+        ContentFile(pdf_bytes),
+        save=True,
+    )
+    record_audit(
+        letter,
+        actor,
+        LetterAuditAction.PDF_GENERATED,
+        letter.status,
+        letter.status,
+    )
+
+
+class CommitteeLetterListView(CommitteeLetterAccessMixin, TemplateView):
+    template_name = "core/committee_letters/list.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        letters = CommitteeLetter.objects.select_related(
+            "created_by",
+            "approved_by",
+        ).order_by("-created_at")
+        status_totals = {
+            row["status"]: row["total"]
+            for row in letters.values("status").annotate(total=Count("id"))
+        }
+        ctx["letters"] = letters[:100]
+        ctx["total_letters"] = letters.count()
+        ctx["status_cards"] = [
+            {
+                "status": status,
+                "label": label,
+                "total": status_totals.get(status, 0),
+            }
+            for status, label in CommitteeLetter.STATUS_CHOICES
+        ]
+        ctx["recent_letters"] = letters[:8]
+        ctx["can_review_letters"] = can_review_letters(self.request.user)
+        ctx["can_approve_letters"] = can_approve_letters(self.request.user)
+        ctx["can_issue_letters"] = can_issue_letters(self.request.user)
+        return ctx
+
+
+class CommitteeLetterCreateView(CommitteeLetterAccessMixin, CreateView):
+    model = CommitteeLetter
+    form_class = CommitteeLetterForm
+    template_name = "core/committee_letters/form.html"
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        response = super().form_valid(form)
+        record_audit(
+            self.object,
+            self.request.user,
+            LetterAuditAction.CREATED,
+            status_to=self.object.status,
+        )
+        messages.success(self.request, f"Letter {self.object.reference_number} created.")
+        return response
+
+    def get_success_url(self):
+        return reverse("committee-letter-detail", args=[self.object.pk])
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["page_title"] = "Create Committee Letter"
+        return ctx
+
+
+class CommitteeLetterEditView(CommitteeLetterAccessMixin, UpdateView):
+    model = CommitteeLetter
+    form_class = CommitteeLetterForm
+    template_name = "core/committee_letters/form.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        ensure_allowed(can_edit_letter(request.user, self.object))
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        record_audit(
+            self.object,
+            self.request.user,
+            LetterAuditAction.EDITED,
+            self.object.status,
+            self.object.status,
+        )
+        messages.success(self.request, f"Letter {self.object.reference_number} updated.")
+        return response
+
+    def get_success_url(self):
+        return reverse("committee-letter-detail", args=[self.object.pk])
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["page_title"] = f"Edit {self.object.reference_number}"
+        return ctx
+
+
+class CommitteeLetterDetailView(CommitteeLetterAccessMixin, DetailView):
+    model = CommitteeLetter
+    template_name = "core/committee_letters/detail.html"
+    context_object_name = "letter"
+
+    def get_queryset(self):
+        return CommitteeLetter.objects.select_related(
+            "created_by",
+            "reviewed_by",
+            "approved_by",
+            "signatory",
+            "supersedes",
+        ).prefetch_related("audit_entries")
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        letter = self.object
+        ctx["history"] = letter.audit_entries.select_related("actor")
+        ctx["can_edit"] = can_edit_letter(self.request.user, letter)
+        ctx["can_review"] = can_review_letters(self.request.user)
+        ctx["can_approve"] = can_approve_letters(self.request.user)
+        ctx["can_issue"] = can_issue_letters(self.request.user)
+        return ctx
+
+
+class CommitteeLetterPreviewView(CommitteeLetterAccessMixin, DetailView):
+    model = CommitteeLetter
+    template_name = "core/committee_letters/pdf_template.html"
+    context_object_name = "letter"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update(letter_render_context(self.object, official=self.object.is_approved_for_pdf))
+        return ctx
+
+
+class CommitteeLetterActionView(CommitteeLetterAccessMixin, View):
+    template_name = "core/committee_letters/confirm.html"
+    form_class = CommitteeLetterCommentForm
+    action = ""
+    title = ""
+    button_label = ""
+
+    def get_letter(self):
+        return get_committee_letter(self.kwargs["pk"])
+
+    def get_form_class(self):
+        if self.action == "return":
+            return CommitteeLetterReturnForm
+        return self.form_class
+
+    def ensure_action_allowed(self, request, letter):
+        return None
+
+    def get(self, request, *args, **kwargs):
+        letter = self.get_letter()
+        try:
+            self.ensure_action_allowed(request, letter)
+        except PermissionDenied:
+            return HttpResponseForbidden("You are not authorized to perform this action.")
+        form = self.get_form_class()()
+        return render(
+            request,
+            self.template_name,
+            {
+                "letter": letter,
+                "form": form,
+                "action": self.action,
+                "title": self.title,
+                "button_label": self.button_label,
+            },
+        )
+
+    def post(self, request, *args, **kwargs):
+        letter = self.get_letter()
+        try:
+            self.ensure_action_allowed(request, letter)
+        except PermissionDenied:
+            return HttpResponseForbidden("You are not authorized to perform this action.")
+        form = self.get_form_class()(request.POST)
+        if not form.is_valid():
+            return render(
+                request,
+                self.template_name,
+                {
+                    "letter": letter,
+                    "form": form,
+                    "action": self.action,
+                    "title": self.title,
+                    "button_label": self.button_label,
+                },
+            )
+
+        try:
+            self.perform_action(letter, form.cleaned_data.get("comment", ""))
+        except PermissionDenied:
+            return HttpResponseForbidden("You are not authorized to perform this action.")
+        except ValidationError as exc:
+            messages.warning(request, exc.messages[0] if hasattr(exc, "messages") else str(exc))
+            return redirect("committee-letter-detail", pk=letter.pk)
+
+        return redirect("committee-letter-detail", pk=letter.pk)
+
+    def perform_action(self, letter, comment):
+        raise NotImplementedError
+
+
+class CommitteeLetterSubmitView(CommitteeLetterActionView):
+    action = "submit"
+    title = "Submit Letter"
+    button_label = "Submit for Approval"
+
+    def ensure_action_allowed(self, request, letter):
+        ensure_allowed(can_edit_letter(request.user, letter))
+
+    def perform_action(self, letter, comment):
+        submit_letter(letter, self.request.user)
+        messages.success(self.request, f"{letter.reference_number} submitted for approval.")
+
+
+class CommitteeLetterReturnView(CommitteeLetterActionView):
+    action = "return"
+    title = "Return Letter"
+    button_label = "Return for Correction"
+
+    def ensure_action_allowed(self, request, letter):
+        ensure_allowed(can_review_letters(request.user))
+
+    def perform_action(self, letter, comment):
+        return_letter(letter, self.request.user, comment)
+        messages.success(self.request, f"{letter.reference_number} returned for correction.")
+
+
+class CommitteeLetterApproveView(CommitteeLetterActionView):
+    action = "approve"
+    title = "Approve Letter"
+    button_label = "Approve and Generate PDF"
+
+    def ensure_action_allowed(self, request, letter):
+        ensure_allowed(can_approve_letters(request.user))
+
+    def perform_action(self, letter, comment):
+        approve_letter(letter, self.request.user)
+        letter.refresh_from_db()
+        save_official_pdf(letter, self.request.user)
+        if letter.created_by:
+            notify_users(
+                recipients=[letter.created_by],
+                title="Committee Letter Approved",
+                message=f"Letter {letter.reference_number} has been approved.",
+                link=reverse("committee-letter-detail", args=[letter.pk]),
+                send_email=True,
+            )
+        messages.success(self.request, f"{letter.reference_number} approved and PDF generated.")
+
+
+class CommitteeLetterIssueView(CommitteeLetterActionView):
+    action = "issue"
+    title = "Issue Letter"
+    button_label = "Issue Letter"
+
+    def ensure_action_allowed(self, request, letter):
+        ensure_allowed(can_issue_letters(request.user))
+
+    def perform_action(self, letter, comment):
+        issue_letter(letter, self.request.user)
+        letter.refresh_from_db()
+        save_official_pdf(letter, self.request.user)
+        messages.success(self.request, f"{letter.reference_number} issued.")
+
+
+class CommitteeLetterCancelView(CommitteeLetterActionView):
+    action = "cancel"
+    title = "Cancel Letter"
+    button_label = "Cancel Letter"
+
+    def ensure_action_allowed(self, request, letter):
+        ensure_allowed(can_review_letters(request.user))
+
+    def perform_action(self, letter, comment):
+        cancel_letter(letter, self.request.user, comment)
+        messages.success(self.request, f"{letter.reference_number} cancelled.")
+
+
+class CommitteeLetterCorrectView(CommitteeLetterActionView):
+    action = "correct"
+    title = "Create Correction Draft"
+    button_label = "Create Draft Version"
+
+    def ensure_action_allowed(self, request, letter):
+        ensure_allowed(is_committee_user(request.user))
+
+    def perform_action(self, letter, comment):
+        correction = create_correction_draft(letter, self.request.user)
+        messages.success(
+            self.request,
+            f"Correction draft {correction.reference_number} created.",
+        )
+
+
+class CommitteeLetterGeneratePDFView(CommitteeLetterActionView):
+    action = "generate_pdf"
+    title = "Generate Official PDF"
+    button_label = "Generate PDF"
+
+    def ensure_action_allowed(self, request, letter):
+        ensure_allowed(can_approve_letters(request.user) or can_issue_letters(request.user))
+
+    def perform_action(self, letter, comment):
+        ensure_allowed(can_approve_letters(self.request.user) or can_issue_letters(self.request.user))
+        if not letter.is_approved_for_pdf:
+            raise ValidationError("Only approved or issued letters can generate official PDFs.")
+        save_official_pdf(letter, self.request.user)
+        messages.success(self.request, f"PDF generated for {letter.reference_number}.")
+
+
+class CommitteeLetterPDFView(CommitteeLetterAccessMixin, View):
+    def get(self, request, pk):
+        letter = get_committee_letter(pk)
+        if not letter.is_approved_for_pdf:
+            return HttpResponseForbidden("Only approved or issued official PDFs can be downloaded.")
+        if letter.status == CommitteeLetter.STATUS_APPROVED and can_approve_letters(request.user):
+            save_official_pdf(letter, request.user)
+            letter.refresh_from_db()
+        if not letter.pdf_file:
+            ensure_allowed(can_approve_letters(request.user) or can_issue_letters(request.user))
+            save_official_pdf(letter, request.user)
+            letter.refresh_from_db()
+        return FileResponse(
+            letter.pdf_file.open("rb"),
+            as_attachment=True,
+            filename=committee_letter_pdf_filename(letter),
+            content_type="application/pdf",
+        )
+
+
+class CommitteeLetterStatusUpdateView(CommitteeLetterAccessMixin, View):
+    legacy_action_map = {
+        "submit": submit_letter,
+        "correct": create_correction_draft,
+    }
+
+    def post(self, request, pk, action):
+        letter = get_committee_letter(pk)
+        try:
+            if action == "submit":
+                submit_letter(letter, request.user)
+            elif action == "correct":
+                create_correction_draft(letter, request.user)
+            else:
+                raise ValidationError("Use the dedicated workflow confirmation page for this action.")
+        except PermissionDenied:
+            return HttpResponseForbidden("You are not authorized to perform this action.")
+        except ValidationError as exc:
+            messages.warning(request, exc.messages[0] if hasattr(exc, "messages") else str(exc))
+        return redirect("committee-letter-list")
+
+
+class LetterVerifyView(FormView):
+    template_name = "core/committee_letters/verify.html"
+    form_class = LetterVerificationForm
+
+    def form_valid(self, form):
+        code = form.cleaned_data["verification_code"].strip()
+        return redirect("letter-verify-result", verification_code=code)
+
+
+class LetterVerifyResultView(TemplateView):
+    template_name = "core/committee_letters/verify_result.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        code = kwargs["verification_code"].strip()
+        letter = CommitteeLetter.objects.filter(verification_code__iexact=code).first()
+        ctx["verification_code"] = code
+        ctx["letter"] = letter
+        ctx["is_valid"] = bool(
+            letter and letter.status in {CommitteeLetter.STATUS_APPROVED, CommitteeLetter.STATUS_ISSUED}
+        )
+        return ctx
+
 
 class ExportContributionsCSV(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     def test_func(self):

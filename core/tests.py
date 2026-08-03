@@ -1,14 +1,29 @@
+import shutil
+import tempfile
 from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import patch
 
 from django.core import mail
+from django.core.exceptions import ValidationError
+from django.core.files.base import ContentFile
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
-from core.models import Announcement, Contribution, Loan, MeetingNote, Notification, Welfare
+from core.forms import CommitteeLetterForm, DEFAULT_RECIPIENT_ADDRESS
+from core.models import (
+    Announcement,
+    CommitteeLetter,
+    CommitteeLetterAudit,
+    Contribution,
+    Loan,
+    MeetingNote,
+    Notification,
+    Welfare,
+)
+from core.models import LetterAuditAction
 from core.services.notifications import (
     _to_absolute_link,
     normalize_notification_link,
@@ -54,6 +69,282 @@ class NotificationLinkNormalizationTests(SimpleTestCase):
 
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("https://tambul.org/member-dashboard", mail.outbox[0].body)
+
+
+class CommitteeLetterWorkflowTests(TestCase):
+    def setUp(self):
+        self.media_root = tempfile.mkdtemp()
+        self.media_override = override_settings(MEDIA_ROOT=self.media_root)
+        self.media_override.enable()
+        self.addCleanup(self.media_override.disable)
+        self.addCleanup(shutil.rmtree, self.media_root, ignore_errors=True)
+
+        self.creator = User.objects.create_user(
+            username="secretary_letters",
+            password="pass1234",
+            role="secretary",
+        )
+        self.approver = User.objects.create_user(
+            username="chair_letters",
+            password="pass1234",
+            role="chairperson",
+        )
+
+    def _letter(self, status=CommitteeLetter.STATUS_DRAFT):
+        return CommitteeLetter.objects.create(
+            letter_type="general",
+            recipient_name="Recipient Name",
+            recipient_organization="Recipient Organization",
+            recipient_address="P.O. Box 1",
+            subject="Membership confirmation",
+            body="This confirms the requested committee correspondence.",
+            created_by=self.creator,
+            signatory_name="Authorized Official",
+            signatory_position="Secretary",
+            status=status,
+        )
+
+    def test_reference_and_verification_code_are_assigned(self):
+        letter = self._letter()
+        year = timezone.localdate().year
+
+        self.assertEqual(letter.reference_number, f"THYG/COM/{year}/001")
+        self.assertTrue(letter.verification_code.startswith(f"THYG-{year}-001-"))
+
+    def test_approval_generates_locked_record_pdf_and_audit_entries(self):
+        letter = self._letter(status=CommitteeLetter.STATUS_SUBMITTED)
+        self.client.force_login(self.approver)
+
+        response = self.client.post(
+            reverse("committee-letter-approve", args=[letter.pk])
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("committee-letter-detail", args=[letter.pk]),
+            fetch_redirect_response=False,
+        )
+        letter.refresh_from_db()
+        self.assertEqual(letter.status, CommitteeLetter.STATUS_APPROVED)
+        self.assertEqual(letter.approved_by, self.approver)
+        self.assertIsNotNone(letter.approved_at)
+        self.assertTrue(letter.pdf_file.name.endswith(".pdf"))
+        self.assertTrue(letter.pdf_file.storage.exists(letter.pdf_file.name))
+        self.assertEqual(
+            list(
+                CommitteeLetterAudit.objects.filter(letter=letter)
+                .order_by("created_at")
+                .values_list("action", flat=True)
+            ),
+            [LetterAuditAction.APPROVED, LetterAuditAction.PDF_GENERATED],
+        )
+
+    def test_approved_letter_content_cannot_be_edited(self):
+        letter = self._letter(status=CommitteeLetter.STATUS_APPROVED)
+        letter.subject = "Changed subject"
+
+        with self.assertRaises(ValidationError):
+            letter.save()
+
+    def test_locked_letter_can_create_correction_draft_version(self):
+        letter = self._letter(status=CommitteeLetter.STATUS_ISSUED)
+        self.client.force_login(self.creator)
+
+        response = self.client.post(
+            reverse("committee-letter-status", args=[letter.pk, "correct"])
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("committee-letter-list"),
+            fetch_redirect_response=False,
+        )
+        correction = CommitteeLetter.objects.get(supersedes=letter)
+        self.assertEqual(correction.status, CommitteeLetter.STATUS_DRAFT)
+        self.assertEqual(correction.version, 2)
+        self.assertNotEqual(correction.reference_number, letter.reference_number)
+        self.assertTrue(
+            CommitteeLetterAudit.objects.filter(
+                letter=letter,
+                action=LetterAuditAction.CORRECTION_CREATED,
+                comment__contains=correction.reference_number,
+            ).exists()
+        )
+
+    def test_member_cannot_access_committee_letter_list(self):
+        member = User.objects.create_user(
+            username="ordinary_member",
+            password="pass1234",
+            role="member",
+        )
+        self.client.force_login(member)
+
+        response = self.client.get(reverse("committee-letter-list"))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_submitted_letter_cannot_be_edited(self):
+        letter = self._letter(status=CommitteeLetter.STATUS_SUBMITTED)
+        self.client.force_login(self.creator)
+
+        response = self.client.get(reverse("committee-letter-edit", args=[letter.pk]))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_return_requires_review_permission_and_comment(self):
+        letter = self._letter(status=CommitteeLetter.STATUS_SUBMITTED)
+        self.client.force_login(self.approver)
+
+        response = self.client.post(
+            reverse("committee-letter-return", args=[letter.pk]),
+            {"comment": "Please correct the address."},
+        )
+
+        self.assertRedirects(response, reverse("committee-letter-detail", args=[letter.pk]))
+        letter.refresh_from_db()
+        self.assertEqual(letter.status, CommitteeLetter.STATUS_RETURNED)
+        self.assertEqual(letter.reviewed_by, self.approver)
+        self.assertEqual(letter.review_comment, "Please correct the address.")
+
+    def test_only_chairperson_can_approve_or_issue_letters(self):
+        admin = User.objects.create_user(
+            username="admin_letters",
+            password="pass1234",
+            role="admin",
+        )
+
+        for user in [self.creator, admin]:
+            submitted = self._letter(status=CommitteeLetter.STATUS_SUBMITTED)
+            approved = self._letter(status=CommitteeLetter.STATUS_APPROVED)
+            self.client.force_login(user)
+
+            approve_url = reverse("committee-letter-approve", args=[submitted.pk])
+            issue_url = reverse("committee-letter-issue", args=[approved.pk])
+
+            self.assertEqual(self.client.get(approve_url).status_code, 403)
+            self.assertEqual(self.client.post(approve_url).status_code, 403)
+            self.assertEqual(self.client.get(issue_url).status_code, 403)
+            self.assertEqual(self.client.post(issue_url).status_code, 403)
+
+            submitted.refresh_from_db()
+            approved.refresh_from_db()
+            self.assertEqual(submitted.status, CommitteeLetter.STATUS_SUBMITTED)
+            self.assertEqual(approved.status, CommitteeLetter.STATUS_APPROVED)
+
+    def test_draft_preview_has_watermark_and_no_stamp(self):
+        letter = self._letter()
+        self.client.force_login(self.creator)
+
+        response = self.client.get(reverse("committee-letter-preview", args=[letter.pk]))
+
+        self.assertContains(response, "DRAFT - NOT OFFICIALLY APPROVED")
+        self.assertNotContains(response, "/static/images/stamp.jpg")
+
+    def test_approved_preview_has_stamp_date(self):
+        letter = self._letter(status=CommitteeLetter.STATUS_APPROVED)
+        CommitteeLetter.objects.filter(pk=letter.pk).update(
+            approved_by=self.approver,
+            approved_at=timezone.make_aware(datetime(2026, 8, 2, 9, 30)),
+        )
+        letter.refresh_from_db()
+        self.client.force_login(self.approver)
+
+        response = self.client.get(reverse("committee-letter-preview", args=[letter.pk]))
+
+        self.assertNotContains(response, "DRAFT - NOT OFFICIALLY APPROVED")
+        self.assertContains(response, "official-stamp")
+        self.assertContains(response, "02 AUG 2026")
+
+    def test_approved_pdf_download_refreshes_saved_pdf_for_chairperson(self):
+        letter = self._letter(status=CommitteeLetter.STATUS_APPROVED)
+        old_pdf_name = letter.pdf_file.storage.save(
+            "committee_letters/generated/old-layout.pdf",
+            ContentFile(b"old layout"),
+        )
+        CommitteeLetter.objects.filter(pk=letter.pk).update(pdf_file=old_pdf_name)
+        letter.refresh_from_db()
+        self.client.force_login(self.approver)
+
+        with patch(
+            "core.views.generate_committee_letter_pdf",
+            return_value=b"fresh layout",
+        ):
+            response = self.client.get(reverse("committee-letter-pdf", args=[letter.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(b"".join(response.streaming_content), b"fresh layout")
+
+    def test_chairperson_can_explicitly_regenerate_issued_pdf(self):
+        letter = self._letter(status=CommitteeLetter.STATUS_ISSUED)
+        old_pdf_name = letter.pdf_file.storage.save(
+            "committee_letters/generated/old-issued-layout.pdf",
+            ContentFile(b"old issued layout"),
+        )
+        CommitteeLetter.objects.filter(pk=letter.pk).update(pdf_file=old_pdf_name)
+        self.client.force_login(self.approver)
+
+        with patch(
+            "core.views.generate_committee_letter_pdf",
+            return_value=b"fresh issued layout",
+        ):
+            response = self.client.post(
+                reverse("committee-letter-generate-pdf", args=[letter.pk])
+            )
+
+        self.assertRedirects(
+            response,
+            reverse("committee-letter-detail", args=[letter.pk]),
+            fetch_redirect_response=False,
+        )
+        letter.refresh_from_db()
+        with letter.pdf_file.open("rb") as refreshed_pdf:
+            self.assertEqual(refreshed_pdf.read(), b"fresh issued layout")
+
+    def test_verification_page_shows_valid_metadata_without_body(self):
+        letter = self._letter(status=CommitteeLetter.STATUS_ISSUED)
+
+        response = self.client.get(
+            reverse("letter-verify-result", args=[letter.verification_code])
+        )
+
+        self.assertContains(response, "Valid Official Letter")
+        self.assertContains(response, letter.reference_number)
+        self.assertContains(response, letter.subject)
+        self.assertNotContains(response, letter.body)
+
+    def test_letter_form_uses_member_dropdown_defaults_and_disciplinary_type(self):
+        member = User.objects.create_user(
+            username="recipient_member",
+            first_name="Recipient",
+            last_name="Member",
+            password="pass1234",
+            role="member",
+        )
+
+        form = CommitteeLetterForm()
+
+        self.assertIn(
+            ("Recipient Member", str(member)),
+            list(form.fields["recipient_name"].choices),
+        )
+        self.assertEqual(
+            list(form.fields["recipient_position"].choices),
+            [
+                ("Member", "Member"),
+                ("Committee", "Committee"),
+                ("Disciplinary Committee", "Disciplinary Committee"),
+            ],
+        )
+        self.assertEqual(
+            form.fields["recipient_address"].initial,
+            DEFAULT_RECIPIENT_ADDRESS,
+        )
+        self.assertIn(
+            ("disciplinary_committee", "Disciplinary committee letter"),
+            list(form.fields["letter_type"].choices),
+        )
+        self.assertNotIn("recipient_organization", form.fields)
+        self.assertNotIn("signatory", form.fields)
 
 
 class MemberDashboardPeriodFilterTests(TestCase):
@@ -281,6 +572,20 @@ class LoanLateStatusRulesTests(TestCase):
 
 
 class CommitteeDashboardPeriodFilterTests(TestCase):
+    def test_my_summary_includes_payment_actions(self):
+        committee = User.objects.create_user(
+            username="payment_committee",
+            password="pass1234",
+            role="committee",
+        )
+        self.client.force_login(committee)
+
+        response = self.client.get(reverse("committee-dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'href="{reverse("create_payment")}"')
+        self.assertContains(response, f'href="{reverse("payment_history")}"')
+
     def test_loan_totals_use_visible_table_balance_source_for_selected_month(self):
         committee = User.objects.create_user(
             username="period_committee",

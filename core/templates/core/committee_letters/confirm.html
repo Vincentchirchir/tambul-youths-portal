@@ -1,0 +1,44 @@
+{% extends "core/committee_letters/base.html" %}
+
+{% block title %}{{ title }} | Tambul Hustle{% endblock %}
+
+{% block content %}
+<section class="letter-page-header">
+  <div>
+    <h1>{{ title }}</h1>
+    <p class="muted">{{ letter.reference_number }} - {{ letter.subject }}</p>
+  </div>
+  <div class="letter-actions">
+    <a class="btn btn-outline" href="{% url 'committee-letter-detail' letter.pk %}">Back</a>
+  </div>
+</section>
+
+<section class="letter-panel">
+  <form method="post" class="letter-form">
+    {% csrf_token %}
+    {% if action == "approve" %}
+    <p>Approving this letter will lock its content and generate the stamped official PDF.</p>
+    {% elif action == "issue" %}
+    <p>Issuing this letter records the issue date and refreshes the official PDF with that date.</p>
+    {% elif action == "cancel" %}
+    <p>Cancellation is recorded in the audit history.</p>
+    {% elif action == "return" %}
+    <p>Enter the correction comment that should be shown to the letter creator.</p>
+    {% elif action == "generate_pdf" %}
+    <p>This explicitly regenerates the official PDF using the current stamp and signature layout.</p>
+    {% endif %}
+
+    {% if form.comment %}
+    <label>
+      <span>Comment</span>
+      {{ form.comment }}
+      {{ form.comment.errors }}
+    </label>
+    {% endif %}
+    <div class="letter-actions" style="margin-top: 16px">
+      <button class="btn" type="submit">{{ button_label }}</button>
+      <a class="btn btn-secondary" href="{% url 'committee-letter-detail' letter.pk %}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}
