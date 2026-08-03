@@ -1,0 +1,78 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Payment Instructions | Tambul Hustle Youth Group{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'payments/payment.css' %}">
+{% endblock %}
+
+{% block content %}
+<main class="payment-page">
+  <section class="payment-panel payment-panel-wide">
+    {% include "core/partials/messages.html" %}
+
+    <div class="payment-heading">
+      <p class="payment-eyebrow">Payment Instructions</p>
+      <h1>Use These Details To Pay</h1>
+    </div>
+
+    <div class="instruction-grid">
+      <div class="instruction-item">
+        <span>Paybill</span>
+        <strong>{{ paybill_number }}</strong>
+      </div>
+      <div class="instruction-item">
+        <span>Account / Reference</span>
+        <strong>{{ payment.customer_reference }}</strong>
+      </div>
+      <div class="instruction-item">
+        <span>Amount</span>
+        <strong>KES {{ payment.amount_expected }}</strong>
+      </div>
+      <div class="instruction-item">
+        <span>Status</span>
+        <strong>{{ payment.get_status_display }}</strong>
+      </div>
+    </div>
+
+    <dl class="payment-details">
+      <div>
+        <dt>Payment Type</dt>
+        <dd>{{ payment.get_payment_type_display }}</dd>
+      </div>
+      {% if payment.contribution_month %}
+        <div>
+          <dt>Contribution Month</dt>
+          <dd>{{ payment.contribution_month|date:"F Y" }}</dd>
+        </div>
+      {% endif %}
+      {% if payment.related_loan %}
+        <div>
+          <dt>Loan</dt>
+          <dd>{{ payment.related_loan }}</dd>
+        </div>
+      {% endif %}
+      <div>
+        <dt>Created</dt>
+        <dd>{{ payment.created_at|date:"M d, Y H:i" }}</dd>
+      </div>
+      {% if payment.paid_at %}
+        <div>
+          <dt>Paid At</dt>
+          <dd>{{ payment.paid_at|date:"M d, Y H:i" }}</dd>
+        </div>
+      {% endif %}
+    </dl>
+
+    <div class="payment-alert payment-alert-info">
+      After payment, KCB will notify the portal and your records will update automatically.
+    </div>
+
+    <div class="payment-actions">
+      <a href="{% url 'payment_history' %}" class="btn btn-primary">View My Payments</a>
+      <a href="{% url 'create_payment' %}" class="btn btn-secondary">Make Another Payment</a>
+    </div>
+  </section>
+</main>
+{% endblock %}

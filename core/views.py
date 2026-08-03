@@ -4,7 +4,7 @@ from django.urls import reverse_lazy, reverse
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db.models import Sum, F, ExpressionWrapper, DecimalField, Case, When, Value, Count
+from django.db.models import Sum, F, ExpressionWrapper, DecimalField, Case, When, Value, Count, Q
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from.models import (
     CommitteeLetter,
@@ -148,6 +148,97 @@ def filter_by_dashboard_period(queryset, field_name, year, month=None):
     if month:
         filters[f"{field_name}__month"] = month
     return queryset.filter(**filters)
+
+
+def dashboard_param(request, name):
+    return (request.GET.get(name) or "").strip()
+
+
+def filter_text(queryset, value, lookups):
+    if not value:
+        return queryset
+
+    query = Q()
+    for lookup in lookups:
+        query |= Q(**{lookup: value})
+    return queryset.filter(query)
+
+
+def filter_exact(queryset, field_name, value):
+    if not value:
+        return queryset
+    return queryset.filter(**{field_name: value})
+
+
+def filter_month_value(queryset, field_name, value):
+    if not value:
+        return queryset
+    try:
+        year, month = [int(part) for part in value.split("-", 1)]
+    except (TypeError, ValueError):
+        return queryset
+    if month not in range(1, 13):
+        return queryset
+    return queryset.filter(**{f"{field_name}__year": year, f"{field_name}__month": month})
+
+
+def filter_decimal_range(queryset, field_name, minimum="", maximum=""):
+    try:
+        if minimum:
+            queryset = queryset.filter(**{f"{field_name}__gte": Decimal(minimum)})
+        if maximum:
+            queryset = queryset.filter(**{f"{field_name}__lte": Decimal(maximum)})
+    except (InvalidOperation, ValueError):
+        return queryset
+    return queryset
+
+
+def filter_date_range(queryset, field_name, start="", end=""):
+    try:
+        if start:
+            queryset = queryset.filter(**{f"{field_name}__date__gte": date.fromisoformat(start)})
+        if end:
+            queryset = queryset.filter(**{f"{field_name}__date__lte": date.fromisoformat(end)})
+    except ValueError:
+        return queryset
+    return queryset
+
+
+def dashboard_filter_values(request):
+    names = [
+        "member_search",
+        "member_role",
+        "loan_member",
+        "loan_status",
+        "loan_repayment_status",
+        "loan_month",
+        "loan_due_month",
+        "loan_min_amount",
+        "loan_max_amount",
+        "loan_has_balance",
+        "contribution_member",
+        "contribution_status",
+        "contribution_month",
+        "contribution_min_amount",
+        "contribution_max_amount",
+        "welfare_member",
+        "welfare_status",
+        "welfare_month",
+        "welfare_min_amount",
+        "welfare_max_amount",
+        "letter_search",
+        "letter_recipient_type",
+        "letter_type",
+        "letter_status",
+        "letter_created_by",
+        "announcement_search",
+        "announcement_from",
+        "announcement_to",
+        "minute_search",
+        "minute_from",
+        "minute_to",
+    ]
+    return {name: dashboard_param(request, name) for name in names}
 
 
 def dashboard_period_context(year, month, available_years):
@@ -310,6 +401,7 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         ctx = super().get_context_data(**kwargs)
         year, month, available_years = selected_dashboard_period(self.request)
         user = self.request.user
+        filters = dashboard_filter_values(self.request)
         ctx["user_display_name"] = user.first_name or user.username
         ctx["unread_notifications"] = user.notifications.filter(is_read=False).count()
 
@@ -423,19 +515,126 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         ctx["today"] = date.today()
 
         #2️ DATA TABLES
-        ctx["members"] = (
-            User.objects.all()
-            .exclude(role="admin")
-            .order_by("first_name")
+        members = User.objects.exclude(role="admin")
+        members = filter_text(
+            members,
+            filters["member_search"],
+            [
+                "first_name__icontains",
+                "last_name__icontains",
+                "username__icontains",
+                "email__icontains",
+                "phone__icontains",
+                "membership_number__icontains",
+                "national_id__icontains",
+            ],
         )
-        ctx["loans"] = loans_for_period.order_by("-created_at")
-        ctx["contributions"] = contributions_for_period.order_by("-month", "-created_at")
-        ctx["welfare_records"] = welfare_for_period.order_by("-date_given")
+        members = filter_exact(members, "role", filters["member_role"])
+
+        loans = loans_for_period.select_related("member")
+        loans = filter_text(
+            loans,
+            filters["loan_member"],
+            [
+                "member__first_name__icontains",
+                "member__last_name__icontains",
+                "member__username__icontains",
+                "member__membership_number__icontains",
+            ],
+        )
+        loans = filter_exact(loans, "status", filters["loan_status"])
+        loans = filter_exact(loans, "repayment_status", filters["loan_repayment_status"])
+        loans = filter_month_value(loans, "loan_date", filters["loan_month"])
+        loans = filter_month_value(loans, "due_date", filters["loan_due_month"])
+        loans = filter_decimal_range(
+            loans,
+            "amount",
+            filters["loan_min_amount"],
+            filters["loan_max_amount"],
+        )
+        loans = list(loans.order_by("-created_at"))
+        if filters["loan_has_balance"] == "yes":
+            loans = [loan for loan in loans if loan.status != "rejected" and loan.current_balance() > 0]
+        elif filters["loan_has_balance"] == "no":
+            loans = [loan for loan in loans if loan.status == "rejected" or loan.current_balance() == 0]
+        filtered_approved_loans = [loan for loan in loans if loan.status == "approved"]
+
+        contributions = contributions_for_period.select_related("member")
+        contributions = filter_text(
+            contributions,
+            filters["contribution_member"],
+            [
+                "member__first_name__icontains",
+                "member__last_name__icontains",
+                "member__username__icontains",
+                "member__membership_number__icontains",
+            ],
+        )
+        contributions = filter_exact(contributions, "status", filters["contribution_status"])
+        contributions = filter_month_value(contributions, "month", filters["contribution_month"])
+        contributions = filter_decimal_range(
+            contributions,
+            "amount",
+            filters["contribution_min_amount"],
+            filters["contribution_max_amount"],
+        )
+        filtered_contribution_total = (
+            contributions.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        )
+
+        welfare_records = welfare_for_period.select_related("member")
+        welfare_records = filter_text(
+            welfare_records,
+            filters["welfare_member"],
+            [
+                "member__first_name__icontains",
+                "member__last_name__icontains",
+                "member__username__icontains",
+                "member__membership_number__icontains",
+                "description__icontains",
+            ],
+        )
+        welfare_records = filter_exact(welfare_records, "status", filters["welfare_status"])
+        welfare_records = filter_month_value(welfare_records, "date_given", filters["welfare_month"])
+        welfare_records = filter_decimal_range(
+            welfare_records,
+            "amount",
+            filters["welfare_min_amount"],
+            filters["welfare_max_amount"],
+        )
+
+        ctx["members"] = members.order_by("first_name", "last_name", "username")
+        ctx["loans"] = loans
+        ctx["filtered_loan_disbursed"] = sum(
+            (loan.amount for loan in filtered_approved_loans),
+            Decimal("0.00"),
+        )
+        ctx["filtered_loan_repaid"] = sum(
+            (loan.total_paid_so_far for loan in filtered_approved_loans),
+            Decimal("0.00"),
+        )
+        ctx["filtered_loan_outstanding"] = sum(
+            (loan.current_balance() for loan in filtered_approved_loans),
+            Decimal("0.00"),
+        )
+        ctx["contributions"] = contributions.order_by("-month", "-created_at")
+        ctx["filtered_contribution_total"] = filtered_contribution_total
+        ctx["welfare_records"] = welfare_records.order_by("-date_given")
 
         # 3️ ANNOUNCEMENTS 
-        ctx["announcements"] = (
-            announcements_for_period.order_by("-published_at")[:10]
+        announcements = filter_text(
+            announcements_for_period,
+            filters["announcement_search"],
+            ["title__icontains", "message__icontains"],
         )
+        announcements = filter_date_range(
+            announcements,
+            "published_at",
+            filters["announcement_from"],
+            filters["announcement_to"],
+        )
+        ctx["announcements"] = announcements.order_by("-published_at")[:10]
+        ctx["latest_announcements"] = announcements.order_by("-published_at")[:5]
 
         #4️ ANALYTICS DATA
         # Monthly contribution
@@ -488,11 +687,31 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         ctx["welfare_labels"] = [w["status"] for w in welfare_stats]
         ctx["welfare_totals"] = [float(w["total"]) for w in welfare_stats]
         #Meeting Reports
-        ctx["meeting_notes"] = meeting_notes_for_period.order_by("-created_at")
+        meeting_notes = filter_text(
+            meeting_notes_for_period,
+            filters["minute_search"],
+            ["title__icontains", "description__icontains", "content__icontains"],
+        )
+        meeting_notes = filter_date_range(
+            meeting_notes,
+            "created_at",
+            filters["minute_from"],
+            filters["minute_to"],
+        )
+        ctx["meeting_notes"] = meeting_notes.order_by("-created_at")
 
         # 5️ YEAR & DATE INFO
         ctx.update(dashboard_period_context(year, month, available_years))
         ctx["today"] = date.today()
+        ctx["filters"] = filters
+        ctx["role_choices"] = User.ROLE_CHOICES
+        ctx["loan_status_choices"] = Loan._meta.get_field("status").choices
+        ctx["loan_repayment_status_choices"] = Loan._meta.get_field("repayment_status").choices
+        ctx["contribution_status_choices"] = Contribution._meta.get_field("status").choices
+        ctx["welfare_status_choices"] = Welfare._meta.get_field("status").choices
+        ctx["letter_type_choices"] = CommitteeLetter.LETTER_TYPE_CHOICES
+        ctx["letter_status_choices"] = CommitteeLetter.STATUS_CHOICES
+        ctx["letter_recipient_type_choices"] = CommitteeLetter.RECIPIENT_TYPE_CHOICES
 
         # Top 5 members by approved loan amount this year
         top_borrowers = (
@@ -525,14 +744,37 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
                 "signatory",
             )
             .all()
-            .order_by("-created_at")
+        )
+        letters = filter_text(
+            letters,
+            filters["letter_search"],
+            [
+                "reference_number__icontains",
+                "subject__icontains",
+                "recipient_name__icontains",
+                "institution_name__icontains",
+                "attention_name__icontains",
+                "signatory_name__icontains",
+            ],
+        )
+        letters = filter_exact(letters, "recipient_type", filters["letter_recipient_type"])
+        letters = filter_exact(letters, "letter_type", filters["letter_type"])
+        letters = filter_exact(letters, "status", filters["letter_status"])
+        letters = filter_text(
+            letters,
+            filters["letter_created_by"],
+            [
+                "created_by__first_name__icontains",
+                "created_by__last_name__icontains",
+                "created_by__username__icontains",
+            ],
         )
         status_totals = {
             row["status"]: row["total"]
             for row in letters.values("status").annotate(total=Count("id"))
         }
         ctx["letter_form"] = CommitteeLetterForm()
-        ctx["committee_letters"] = letters[:50]
+        ctx["committee_letters"] = letters.order_by("-created_at")[:50]
         ctx["letter_status_cards"] = [
             {
                 "status": status,

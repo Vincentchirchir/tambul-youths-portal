@@ -31,24 +31,79 @@
         {{ form.letter_date.errors }}
       </label>
       <label>
-        <span>Recipient name</span>
-        {{ form.recipient_name }}
-        {{ form.recipient_name.errors }}
+        <span>Recipient type</span>
+        {{ form.recipient_type }}
+        {{ form.recipient_type.errors }}
       </label>
-      <label>
-        <span>Recipient position</span>
-        {{ form.recipient_position }}
-        {{ form.recipient_position.errors }}
-      </label>
+      <div class="wide letter-recipient-section" data-recipient-section="member">
+        <h2>Member Recipient</h2>
+        <div class="letter-form-grid compact-grid">
+          <label>
+            <span>Recipient name</span>
+            {{ form.recipient_name }}
+            {{ form.recipient_name.errors }}
+          </label>
+          <label>
+            <span>Recipient position</span>
+            {{ form.recipient_position }}
+            {{ form.recipient_position.errors }}
+          </label>
+          <label class="wide">
+            <span>Recipient postal address</span>
+            {{ form.recipient_address }}
+            {{ form.recipient_address.errors }}
+          </label>
+        </div>
+      </div>
+      <div class="wide letter-recipient-section" data-recipient-section="institution">
+        <h2>Institution Recipient</h2>
+        <div class="letter-form-grid compact-grid">
+          <label>
+            <span>Institution type</span>
+            {{ form.institution_type }}
+            {{ form.institution_type.errors }}
+          </label>
+          <label>
+            <span>Institution name</span>
+            {{ form.institution_name }}
+            {{ form.institution_name.errors }}
+          </label>
+          <label>
+            <span>Department / office</span>
+            {{ form.institution_department }}
+            {{ form.institution_department.errors }}
+          </label>
+          <label>
+            <span>Attention to</span>
+            {{ form.attention_name }}
+            {{ form.attention_name.errors }}
+          </label>
+          <label>
+            <span>Officer position</span>
+            {{ form.attention_position }}
+            {{ form.attention_position.errors }}
+          </label>
+          <label>
+            <span>Email</span>
+            {{ form.institution_email }}
+            {{ form.institution_email.errors }}
+          </label>
+          <label>
+            <span>Telephone</span>
+            {{ form.institution_phone }}
+            {{ form.institution_phone.errors }}
+          </label>
+          <label class="wide">
+            <span>Institution postal address</span>
+            {{ form.institution_address }}
+            {{ form.institution_address.errors }}
+          </label>
+        </div>
+      </div>
       <label>
         <span>Salutation</span>
         {{ form.salutation }}
         {{ form.salutation.errors }}
-      </label>
-      <label class="wide">
-        <span>Recipient postal address</span>
-        {{ form.recipient_address }}
-        {{ form.recipient_address.errors }}
       </label>
       <label class="wide">
         <span>Subject</span>
@@ -87,4 +142,25 @@
     </div>
   </form>
 </section>
+<script>
+  (function () {
+    const typeField = document.querySelector("[data-recipient-type='true']");
+    const sections = document.querySelectorAll("[data-recipient-section]");
+    if (!typeField || !sections.length) return;
+
+    function syncRecipientSections() {
+      const selected = typeField.value || "member";
+      sections.forEach((section) => {
+        const active = section.dataset.recipientSection === selected;
+        section.hidden = !active;
+        section.querySelectorAll("input, select, textarea").forEach((field) => {
+          field.disabled = !active;
+        });
+      });
+    }
+
+    typeField.addEventListener("change", syncRecipientSections);
+    syncRecipientSections();
+  })();
+</script>
 {% endblock %}

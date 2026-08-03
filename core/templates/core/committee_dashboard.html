@@ -245,6 +245,28 @@
           <h3 class="section-title">
             Latest Announcements ({{ period_label }})
           </h3>
+          <form class="section-filters" method="get" action="{% url 'committee-dashboard' %}#personal-summary">
+            <input type="hidden" name="year" value="{{ selected_year }}" />
+            {% if selected_month %}
+            <input type="hidden" name="month" value="{{ selected_month }}" />
+            {% endif %}
+            <label>
+              <span>Search</span>
+              <input type="search" name="announcement_search" value="{{ filters.announcement_search }}" placeholder="Title or message" />
+            </label>
+            <label>
+              <span>From</span>
+              <input type="date" name="announcement_from" value="{{ filters.announcement_from }}" />
+            </label>
+            <label>
+              <span>To</span>
+              <input type="date" name="announcement_to" value="{{ filters.announcement_to }}" />
+            </label>
+            <div class="filter-actions">
+              <button class="btn btn-small" type="submit">Apply</button>
+              <a class="btn btn-small btn-outline-info" href="{% url 'committee-dashboard' %}?year={{ selected_year }}{% if selected_month %}&month={{ selected_month }}{% endif %}#personal-summary">Clear</a>
+            </div>
+          </form>
           <div class="table-wrap">
             <table class="styled-table">
               <thead>
@@ -466,6 +488,28 @@
           <h3 class="section-title">
             Reports & Meeting Minutes ({{ period_label }})
           </h3>
+          <form class="section-filters" method="get" action="{% url 'committee-dashboard' %}#personal-summary">
+            <input type="hidden" name="year" value="{{ selected_year }}" />
+            {% if selected_month %}
+            <input type="hidden" name="month" value="{{ selected_month }}" />
+            {% endif %}
+            <label>
+              <span>Search</span>
+              <input type="search" name="minute_search" value="{{ filters.minute_search }}" placeholder="Title, description, notes" />
+            </label>
+            <label>
+              <span>From</span>
+              <input type="date" name="minute_from" value="{{ filters.minute_from }}" />
+            </label>
+            <label>
+              <span>To</span>
+              <input type="date" name="minute_to" value="{{ filters.minute_to }}" />
+            </label>
+            <div class="filter-actions">
+              <button class="btn btn-small" type="submit">Apply</button>
+              <a class="btn btn-small btn-outline-info" href="{% url 'committee-dashboard' %}?year={{ selected_year }}{% if selected_month %}&month={{ selected_month }}{% endif %}#personal-summary">Clear</a>
+            </div>
+          </form>
           <div class="table-wrap">
             <table class="styled-table">
               <thead>
@@ -591,6 +635,31 @@
       <!--  MEMBERS -->
       <section id="members" class="tab-section">
         <h3>All Members</h3>
+        <form class="section-filters" method="get" action="{% url 'committee-dashboard' %}#members">
+          <input type="hidden" name="year" value="{{ selected_year }}" />
+          {% if selected_month %}
+          <input type="hidden" name="month" value="{{ selected_month }}" />
+          {% endif %}
+          <label>
+            <span>Search member</span>
+            <input type="search" name="member_search" value="{{ filters.member_search }}" placeholder="Name, phone, username, ID" />
+          </label>
+          <label>
+            <span>Role</span>
+            <select name="member_role">
+              <option value="">All roles</option>
+              {% for value, label in role_choices %}
+              {% if value != "admin" %}
+              <option value="{{ value }}" {% if filters.member_role == value %}selected{% endif %}>{{ label }}</option>
+              {% endif %}
+              {% endfor %}
+            </select>
+          </label>
+          <div class="filter-actions">
+            <button class="btn btn-small" type="submit">Apply</button>
+            <a class="btn btn-small btn-outline-info" href="{% url 'committee-dashboard' %}?year={{ selected_year }}{% if selected_month %}&month={{ selected_month }}{% endif %}#members">Clear</a>
+          </div>
+        </form>
         <div class="table-wrap">
           <table class="styled-table">
             <thead>
@@ -633,6 +702,62 @@
           <a href="{% url 'export-loan-csv' %}" class="btn">Export CSV</a>
           <a href="{% url 'export-loan-pdf' %}" class="btn">Download PDF</a>
         </div>
+        <form class="section-filters section-filters--wide" method="get" action="{% url 'committee-dashboard' %}#loans">
+          <input type="hidden" name="year" value="{{ selected_year }}" />
+          {% if selected_month %}
+          <input type="hidden" name="month" value="{{ selected_month }}" />
+          {% endif %}
+          <label>
+            <span>Member</span>
+            <input type="search" name="loan_member" value="{{ filters.loan_member }}" placeholder="Name or membership no." />
+          </label>
+          <label>
+            <span>Approval</span>
+            <select name="loan_status">
+              <option value="">All statuses</option>
+              {% for value, label in loan_status_choices %}
+              <option value="{{ value }}" {% if filters.loan_status == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            <span>Repayment</span>
+            <select name="loan_repayment_status">
+              <option value="">All repayment</option>
+              {% for value, label in loan_repayment_status_choices %}
+              <option value="{{ value }}" {% if filters.loan_repayment_status == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            <span>Loan month</span>
+            <input type="month" name="loan_month" value="{{ filters.loan_month }}" />
+          </label>
+          <label>
+            <span>Due month</span>
+            <input type="month" name="loan_due_month" value="{{ filters.loan_due_month }}" />
+          </label>
+          <label>
+            <span>Min amount</span>
+            <input type="number" name="loan_min_amount" min="0" step="0.01" value="{{ filters.loan_min_amount }}" />
+          </label>
+          <label>
+            <span>Max amount</span>
+            <input type="number" name="loan_max_amount" min="0" step="0.01" value="{{ filters.loan_max_amount }}" />
+          </label>
+          <label>
+            <span>Balance</span>
+            <select name="loan_has_balance">
+              <option value="">Any balance</option>
+              <option value="yes" {% if filters.loan_has_balance == "yes" %}selected{% endif %}>Has balance</option>
+              <option value="no" {% if filters.loan_has_balance == "no" %}selected{% endif %}>No balance</option>
+            </select>
+          </label>
+          <div class="filter-actions">
+            <button class="btn btn-small" type="submit">Apply</button>
+            <a class="btn btn-small btn-outline-info" href="{% url 'committee-dashboard' %}?year={{ selected_year }}{% if selected_month %}&month={{ selected_month }}{% endif %}#loans">Clear</a>
+          </div>
+        </form>
 
         <div class="table-wrap">
           <table class="styled-table">
@@ -698,8 +823,7 @@
                   {% endif %}
                 </td>
                 <td>
-                  {% if loan.status == "rejected" %} Ksh 0.00 {% else %} Ksh {{
-                  loan.current_balance|floatformat:2 }} {% endif %}
+                  {% if loan.status == "rejected" %} Ksh 0.00 {% else %} Ksh {{ loan.current_balance|floatformat:2 }} {% endif %}
                 </td>
 
                 <!-- Approval -->
@@ -811,10 +935,10 @@
             </tbody>
             <tfoot>
               <tr class="loan-total-row">
-                <td>Total Approved</td>
-                <td>Ksh {{ total_loan_disbursed|floatformat:2 }}</td>
-                <td>Ksh {{ total_loan_repaid|floatformat:2 }}</td>
-                <td>Ksh {{ total_loan_outstanding|floatformat:2 }}</td>
+                <td>Shown Approved Total</td>
+                <td>Ksh {{ filtered_loan_disbursed|floatformat:2 }}</td>
+                <td>Ksh {{ filtered_loan_repaid|floatformat:2 }}</td>
+                <td>Ksh {{ filtered_loan_outstanding|floatformat:2 }}</td>
                 {% if user.role == "chairperson" %}
                 <td colspan="7"></td>
                 {% else %}
@@ -834,6 +958,41 @@
           <a href="{% url 'export-contrib-csv' %}" class="btn">Export CSV</a>
           <a href="{% url 'export-contrib-pdf' %}" class="btn">Download PDF</a>
         </div>
+        <form class="section-filters" method="get" action="{% url 'committee-dashboard' %}#contributions">
+          <input type="hidden" name="year" value="{{ selected_year }}" />
+          {% if selected_month %}
+          <input type="hidden" name="month" value="{{ selected_month }}" />
+          {% endif %}
+          <label>
+            <span>Member</span>
+            <input type="search" name="contribution_member" value="{{ filters.contribution_member }}" placeholder="Name or membership no." />
+          </label>
+          <label>
+            <span>Status</span>
+            <select name="contribution_status">
+              <option value="">All statuses</option>
+              {% for value, label in contribution_status_choices %}
+              <option value="{{ value }}" {% if filters.contribution_status == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            <span>Month</span>
+            <input type="month" name="contribution_month" value="{{ filters.contribution_month }}" />
+          </label>
+          <label>
+            <span>Min amount</span>
+            <input type="number" name="contribution_min_amount" min="0" step="0.01" value="{{ filters.contribution_min_amount }}" />
+          </label>
+          <label>
+            <span>Max amount</span>
+            <input type="number" name="contribution_max_amount" min="0" step="0.01" value="{{ filters.contribution_max_amount }}" />
+          </label>
+          <div class="filter-actions">
+            <button class="btn btn-small" type="submit">Apply</button>
+            <a class="btn btn-small btn-outline-info" href="{% url 'committee-dashboard' %}?year={{ selected_year }}{% if selected_month %}&month={{ selected_month }}{% endif %}#contributions">Clear</a>
+          </div>
+        </form>
 
         <div class="table-wrap">
           <table class="styled-table">
@@ -931,10 +1090,26 @@
               </tr>
               {% empty %}
               <tr>
-                <td colspan="7" class="empty">No contributions yet</td>
+                <td
+                  colspan="{% if user.role == 'treasurer' %}7{% else %}6{% endif %}"
+                  class="empty"
+                >
+                  No contributions yet
+                </td>
               </tr>
               {% endfor %}
             </tbody>
+            <tfoot>
+              <tr class="loan-total-row">
+                <td>Total Shown</td>
+                <td>Ksh {{ filtered_contribution_total|floatformat:2 }}</td>
+                {% if user.role == "treasurer" %}
+                <td colspan="5"></td>
+                {% else %}
+                <td colspan="4"></td>
+                {% endif %}
+              </tr>
+            </tfoot>
           </table>
         </div>
       </section>
@@ -947,6 +1122,41 @@
           <a class="btn" href="{% url 'export-welfare-csv' %}">Export CSV</a>
           <a class="btn" href="{% url 'export-welfare-pdf' %}">Download PDF</a>
         </div>
+        <form class="section-filters" method="get" action="{% url 'committee-dashboard' %}#welfare">
+          <input type="hidden" name="year" value="{{ selected_year }}" />
+          {% if selected_month %}
+          <input type="hidden" name="month" value="{{ selected_month }}" />
+          {% endif %}
+          <label>
+            <span>Member / description</span>
+            <input type="search" name="welfare_member" value="{{ filters.welfare_member }}" placeholder="Name, membership no., description" />
+          </label>
+          <label>
+            <span>Status</span>
+            <select name="welfare_status">
+              <option value="">All statuses</option>
+              {% for value, label in welfare_status_choices %}
+              <option value="{{ value }}" {% if filters.welfare_status == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            <span>Month</span>
+            <input type="month" name="welfare_month" value="{{ filters.welfare_month }}" />
+          </label>
+          <label>
+            <span>Min amount</span>
+            <input type="number" name="welfare_min_amount" min="0" step="0.01" value="{{ filters.welfare_min_amount }}" />
+          </label>
+          <label>
+            <span>Max amount</span>
+            <input type="number" name="welfare_max_amount" min="0" step="0.01" value="{{ filters.welfare_max_amount }}" />
+          </label>
+          <div class="filter-actions">
+            <button class="btn btn-small" type="submit">Apply</button>
+            <a class="btn btn-small btn-outline-info" href="{% url 'committee-dashboard' %}?year={{ selected_year }}{% if selected_month %}&month={{ selected_month }}{% endif %}#welfare">Clear</a>
+          </div>
+        </form>
 
         <div class="table-wrap">
           <table class="styled-table">
@@ -1085,6 +1295,51 @@
           </div>
           {% endfor %}
         </div>
+        <form class="section-filters section-filters--wide" method="get" action="{% url 'committee-dashboard' %}#letters">
+          <input type="hidden" name="year" value="{{ selected_year }}" />
+          {% if selected_month %}
+          <input type="hidden" name="month" value="{{ selected_month }}" />
+          {% endif %}
+          <label>
+            <span>Search</span>
+            <input type="search" name="letter_search" value="{{ filters.letter_search }}" placeholder="Reference, subject, recipient" />
+          </label>
+          <label>
+            <span>Recipient type</span>
+            <select name="letter_recipient_type">
+              <option value="">All recipients</option>
+              {% for value, label in letter_recipient_type_choices %}
+              <option value="{{ value }}" {% if filters.letter_recipient_type == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            <span>Letter type</span>
+            <select name="letter_type">
+              <option value="">All letter types</option>
+              {% for value, label in letter_type_choices %}
+              <option value="{{ value }}" {% if filters.letter_type == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            <span>Status</span>
+            <select name="letter_status">
+              <option value="">All statuses</option>
+              {% for value, label in letter_status_choices %}
+              <option value="{{ value }}" {% if filters.letter_status == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            <span>Created by</span>
+            <input type="search" name="letter_created_by" value="{{ filters.letter_created_by }}" placeholder="Name or username" />
+          </label>
+          <div class="filter-actions">
+            <button class="btn btn-small" type="submit">Apply</button>
+            <a class="btn btn-small btn-outline-info" href="{% url 'committee-dashboard' %}?year={{ selected_year }}{% if selected_month %}&month={{ selected_month }}{% endif %}#letters">Clear</a>
+          </div>
+        </form>
 
         <div class="table-wrap">
           <table class="styled-table">
@@ -1115,10 +1370,10 @@
                 </td>
                 <td>{{ letter.get_letter_type_display }}</td>
                 <td>
-                  <strong>{{ letter.recipient_name }}</strong>
-                  {% if letter.recipient_position %}
+                  <strong>{{ letter.recipient_display_name }}</strong>
+                  {% if letter.recipient_display_subtitle %}
                   <span class="table-subtext">
-                    {{ letter.recipient_position }}
+                    {{ letter.recipient_display_subtitle }}
                   </span>
                   {% endif %}
                 </td>

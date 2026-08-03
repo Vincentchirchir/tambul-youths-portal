@@ -1,0 +1,75 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}My Payments | Tambul Hustle Youth Group{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'payments/payment.css' %}">
+{% endblock %}
+
+{% block content %}
+<main class="payment-page">
+  <section class="payment-panel payment-panel-table">
+    <div class="payment-heading payment-heading-row">
+      <div>
+        <p class="payment-eyebrow">Payment History</p>
+        <h1>My Payments</h1>
+      </div>
+      <a href="{% url 'create_payment' %}" class="btn btn-primary">Make New Payment</a>
+    </div>
+
+    <div class="payment-table-wrap">
+      <table class="payment-table">
+        <thead>
+          <tr>
+            <th>Reference</th>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Paid At</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for payment in payments %}
+            <tr>
+              <td>{{ payment.customer_reference }}</td>
+              <td>{{ payment.get_payment_type_display }}</td>
+              <td>KES {{ payment.amount_expected }}</td>
+              <td>
+                <span class="payment-status payment-status-{{ payment.status|slugify }}">
+                  {{ payment.get_status_display }}
+                </span>
+              </td>
+              <td>{{ payment.created_at|date:"M d, Y" }}</td>
+              <td>{{ payment.paid_at|date:"M d, Y"|default:"-" }}</td>
+              <td>
+                <a href="{% url 'payment_instructions' payment.pk %}" class="payment-link">
+                  View
+                </a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="7" class="payment-empty">You have no payments yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if is_paginated %}
+      <nav class="payment-pagination" aria-label="Payment history pages">
+        {% if page_obj.has_previous %}
+          <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+        {% endif %}
+        <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+          <a href="?page={{ page_obj.next_page_number }}">Next</a>
+        {% endif %}
+      </nav>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

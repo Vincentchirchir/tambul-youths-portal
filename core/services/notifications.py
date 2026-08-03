@@ -136,6 +136,49 @@ def send_email_notifications(
     return sent_count
 
 
+def send_email_to_addresses(
+    addresses: Iterable[str],
+    subject: str,
+    message: str,
+    link: str | None = None,
+) -> int:
+    if not getattr(settings, "NOTIFICATIONS_SEND_EMAILS", False):
+        return 0
+
+    clean_addresses = []
+    seen = set()
+    for address in addresses:
+        normalized = (address or "").strip()
+        key = normalized.lower()
+        if not normalized or key in seen:
+            continue
+        clean_addresses.append(normalized)
+        seen.add(key)
+
+    if not clean_addresses:
+        return 0
+
+    body = message
+    absolute_link = _to_absolute_link(link)
+    if absolute_link:
+        body = f"{message}\n\nView details: {absolute_link}"
+
+    try:
+        email = EmailMultiAlternatives(
+            subject=subject,
+            body=body,
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+            to=clean_addresses,
+        )
+        return email.send(fail_silently=False)
+    except Exception:
+        logger.exception(
+            "Failed to send notification email",
+            extra={"recipients": clean_addresses, "subject": subject},
+        )
+        return 0
+
+
 def notify_users(
     recipients: Iterable[User],
     title: str,

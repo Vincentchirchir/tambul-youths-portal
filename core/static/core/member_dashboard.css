@@ -859,7 +859,8 @@ body {
     width: 100%;
   }
 
-  .loan-cta .btn-primary {
+  .loan-cta .btn-primary,
+  .loan-cta .btn-outline-info {
     width: 100%;
     text-align: center;
   }

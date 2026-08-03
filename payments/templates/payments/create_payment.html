@@ -1,0 +1,185 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Make Payment | Tambul Hustle Youth Group{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'payments/payment.css' %}">
+{% endblock %}
+
+{% block content %}
+<main class="payment-page">
+  <section class="payment-panel">
+    <div class="payment-heading">
+      <p class="payment-eyebrow">Member Payment</p>
+      <h1>Make Payment</h1>
+      <p>Select the payment details and generate the reference KCB will validate.</p>
+    </div>
+
+    <form method="post" class="payment-form" novalidate>
+      {% csrf_token %}
+
+      <div class="payment-field-group" data-payment-group="payment-type">
+        {{ form.payment_type.label_tag }}
+        {{ form.payment_type }}
+        {% if form.payment_type.errors %}
+          <div class="payment-error">{{ form.payment_type.errors }}</div>
+        {% endif %}
+      </div>
+
+      <div class="payment-field-group" data-payment-group="loan">
+        {{ form.related_loan.label_tag }}
+        {{ form.related_loan }}
+        <span class="payment-help">Required for loan repayment.</span>
+        {% if form.related_loan.errors %}
+          <div class="payment-error">{{ form.related_loan.errors }}</div>
+        {% endif %}
+      </div>
+
+      <div class="payment-field-group" data-payment-group="contribution-month">
+        <label for="{{ form.contribution_month.id_for_label }}">Contribution month:</label>
+        {{ form.contribution_month }}
+        {% if form.contribution_month.errors %}
+          <div class="payment-error">{{ form.contribution_month.errors }}</div>
+        {% endif %}
+      </div>
+
+      <div class="payment-field-group" data-payment-group="payment-date">
+        <label for="id_payment_date">Current date:</label>
+        <input
+          type="date"
+          id="id_payment_date"
+          class="payment-field"
+          value="{{ payment_date|date:'Y-m-d' }}"
+          readonly
+        />
+      </div>
+
+      <div class="payment-field-group" data-payment-group="penalty">
+        <label for="id_payment_penalty">Penalty:</label>
+        <input
+          type="number"
+          id="id_payment_penalty"
+          class="payment-field"
+          value="{{ monthly_contribution_penalty|floatformat:2 }}"
+          readonly
+        />
+      </div>
+
+      <div class="payment-field-group" data-payment-group="amount">
+        {{ form.amount_expected.label_tag }}
+        {{ form.amount_expected }}
+        {% if form.amount_expected.errors %}
+          <div class="payment-error">{{ form.amount_expected.errors }}</div>
+        {% endif %}
+      </div>
+
+      {% if form.non_field_errors %}
+        <div class="payment-alert payment-alert-error" data-payment-errors>
+          {{ form.non_field_errors }}
+        </div>
+      {% endif %}
+
+      <div class="payment-actions" data-payment-actions>
+        <button type="submit" class="btn btn-primary">Generate Payment Reference</button>
+        <a href="{% url 'payment_history' %}" class="btn btn-secondary">View My Payments</a>
+      </div>
+    </form>
+    {{ payment_amount_config|json_script:"payment-amount-config" }}
+    <script>
+      (() => {
+        const configElement = document.getElementById("payment-amount-config");
+        const paymentTypeField = document.getElementById("id_payment_type");
+        const amountField = document.getElementById("id_amount_expected");
+        const amountLabel = document.querySelector("label[for='id_amount_expected']");
+        const contributionMonthField = document.getElementById("id_contribution_month");
+        const loanField = document.getElementById("id_related_loan");
+        const paymentDateField = document.getElementById("id_payment_date");
+        const penaltyField = document.getElementById("id_payment_penalty");
+        const actions = document.querySelector("[data-payment-actions]");
+        const errors = document.querySelector("[data-payment-errors]");
+        const groups = {
+          amount: document.querySelector("[data-payment-group='amount']"),
+          contributionMonth: document.querySelector("[data-payment-group='contribution-month']"),
+          loan: document.querySelector("[data-payment-group='loan']"),
+          paymentDate: document.querySelector("[data-payment-group='payment-date']"),
+          penalty: document.querySelector("[data-payment-group='penalty']"),
+        };
+
+        if (!configElement || !paymentTypeField || !amountField) return;
+
+        const config = JSON.parse(configElement.textContent);
+        const monthlyPenalty = Number(config.monthlyContributionPenalty || 0);
+
+        function setGroupVisibility(group, visible, order) {
+          if (!group) return;
+          group.hidden = !visible;
+          group.classList.toggle("payment-group-hidden", !visible);
+          group.setAttribute("aria-hidden", visible ? "false" : "true");
+          if (order !== undefined) group.style.order = order;
+          group.querySelectorAll("input, select, textarea").forEach((field) => {
+            if (field.name) field.disabled = !visible;
+          });
+        }
+
+        function setComputedAmount(value) {
+          if (value === undefined || value === null || value === "") {
+            amountField.value = "";
+          } else {
+            amountField.value = Number(value).toFixed(2);
+          }
+          amountField.readOnly = true;
+          amountField.dataset.computedPaymentAmount = "true";
+        }
+
+        function allowManualAmount() {
+          amountField.readOnly = false;
+          if (amountField.dataset.computedPaymentAmount === "true") {
+            amountField.value = "";
+          }
+          amountField.dataset.computedPaymentAmount = "false";
+        }
+
+        function setReadonlyValue(field, value) {
+          if (!field) return;
+          field.value = value || "";
+          field.readOnly = true;
+        }
+
+        function syncPaymentFields() {
+          const paymentType = paymentTypeField.value;
+          const isLoanRepayment = paymentType === "loan_repayment";
+          const isMonthlyContribution = paymentType === "monthly_contribution";
+
+          setReadonlyValue(paymentDateField, config.paymentDate);
+          setReadonlyValue(contributionMonthField, config.contributionMonth);
+          setReadonlyValue(penaltyField, monthlyPenalty.toFixed(2));
+
+          setGroupVisibility(groups.loan, isLoanRepayment, 1);
+          setGroupVisibility(groups.contributionMonth, isMonthlyContribution, 1);
+          setGroupVisibility(groups.paymentDate, true, isLoanRepayment ? 3 : 2);
+          setGroupVisibility(groups.penalty, isMonthlyContribution && monthlyPenalty > 0, 3);
+          setGroupVisibility(groups.amount, true, isMonthlyContribution ? 4 : 2);
+          if (actions) actions.style.order = 20;
+          if (errors) errors.style.order = 19;
+
+          if (isMonthlyContribution) {
+            if (amountLabel) amountLabel.textContent = "Total amount:";
+            setComputedAmount(config.monthlyContributionBalance);
+          } else if (isLoanRepayment) {
+            if (amountLabel) amountLabel.textContent = "Amount:";
+            setComputedAmount(loanField ? config.loanBalances[loanField.value] : "");
+          } else {
+            if (amountLabel) amountLabel.textContent = "Amount:";
+            allowManualAmount();
+          }
+        }
+
+        paymentTypeField.addEventListener("change", syncPaymentFields);
+        if (loanField) loanField.addEventListener("change", syncPaymentFields);
+        syncPaymentFields();
+      })();
+    </script>
+  </section>
+</main>
+{% endblock %}

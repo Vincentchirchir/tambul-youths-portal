@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     #My Apps
     'core',
     'accounts',
+    "payments",
     'channels',
     'daphne',
 
@@ -263,6 +264,7 @@ SITE_BASE_URL = os.environ.get(
     "SITE_BASE_URL",
     "http://localhost:8000" if ENVIRONMENT == "development" else "https://tambul.org",
 )
+KCB_GROUP_ACCOUNT_NUMBER = os.environ.get("KCB_GROUP_ACCOUNT_NUMBER", "TEST_GROUP_ACCOUNT")
 
 NOTIFICATIONS_SEND_EMAILS = env_bool("NOTIFICATIONS_SEND_EMAILS", default=False)
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@tambulyouths.local")

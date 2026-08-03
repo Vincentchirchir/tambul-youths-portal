@@ -94,7 +94,8 @@ class CommitteeLetterAdmin(admin.ModelAdmin):
     list_display = (
         "reference_number",
         "letter_type",
-        "recipient_name",
+        "recipient_type",
+        "recipient_display_name",
         "status",
         "version",
         "created_by",
@@ -102,12 +103,25 @@ class CommitteeLetterAdmin(admin.ModelAdmin):
         "approved_by",
         "issued_at",
     )
-    list_filter = ("letter_type", "status", "letter_date", "approved_at", "issued_at", "created_at")
+    list_filter = (
+        "letter_type",
+        "recipient_type",
+        "institution_type",
+        "status",
+        "letter_date",
+        "approved_at",
+        "issued_at",
+        "created_at",
+    )
     search_fields = (
         "reference_number",
         "verification_code",
         "recipient_name",
         "recipient_organization",
+        "institution_name",
+        "institution_department",
+        "attention_name",
+        "attention_position",
         "subject",
     )
     readonly_fields = (

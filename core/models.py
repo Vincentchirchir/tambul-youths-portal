@@ -349,6 +349,22 @@ class LetterStatus(models.TextChoices):
     CANCELLED = "cancelled", "Cancelled"
 
 
+class LetterRecipientType(models.TextChoices):
+    MEMBER = "member", "Member"
+    INSTITUTION = "institution", "Institution / External"
+
+
+class InstitutionType(models.TextChoices):
+    GOVERNMENT = "government", "Government"
+    PARASTATAL = "parastatal", "Parastatal"
+    NGO = "ngo", "NGO"
+    COMPANY = "company", "Company"
+    SCHOOL = "school", "School"
+    CHURCH = "church", "Church"
+    BANK = "bank", "Bank"
+    OTHER = "other", "Other"
+
+
 class LetterAuditAction(models.TextChoices):
     CREATED = "created", "Letter created"
     EDITED = "edited", "Letter edited"
@@ -444,6 +460,9 @@ class CommitteeLetter(models.Model):
     STATUS_CANCELLED = LetterStatus.CANCELLED
     STATUS_CHOICES = LetterStatus.choices
     LETTER_TYPE_CHOICES = LetterType.choices
+    RECIPIENT_TYPE_MEMBER = LetterRecipientType.MEMBER
+    RECIPIENT_TYPE_INSTITUTION = LetterRecipientType.INSTITUTION
+    RECIPIENT_TYPE_CHOICES = LetterRecipientType.choices
 
     EDITABLE_STATUSES = {LetterStatus.DRAFT, LetterStatus.RETURNED}
     LOCKED_STATUSES = {
@@ -471,10 +490,27 @@ class CommitteeLetter(models.Model):
         default=LetterType.GENERAL,
     )
     letter_date = models.DateField(default=timezone.localdate)
+    recipient_type = models.CharField(
+        max_length=20,
+        choices=RECIPIENT_TYPE_CHOICES,
+        default=LetterRecipientType.MEMBER,
+    )
     recipient_name = models.CharField(max_length=160)
     recipient_position = models.CharField(max_length=160, blank=True)
     recipient_organization = models.CharField(max_length=180, blank=True)
     recipient_address = models.TextField(blank=True, default="PO BOX 1109 ELDORET")
+    institution_type = models.CharField(
+        max_length=30,
+        choices=InstitutionType.choices,
+        blank=True,
+    )
+    institution_name = models.CharField(max_length=180, blank=True)
+    institution_department = models.CharField(max_length=180, blank=True)
+    attention_name = models.CharField(max_length=160, blank=True)
+    attention_position = models.CharField(max_length=160, blank=True)
+    institution_address = models.TextField(blank=True)
+    institution_email = models.EmailField(blank=True)
+    institution_phone = models.CharField(max_length=30, blank=True)
     salutation = models.CharField(max_length=120, default="Dear Sir/Madam,")
     subject = models.CharField(max_length=220)
     body = models.TextField()
@@ -569,8 +605,32 @@ class CommitteeLetter(models.Model):
             return timezone.localtime(self.approved_at).date()
         return self.letter_date
 
+    @property
+    def is_institution_recipient(self):
+        return self.recipient_type == LetterRecipientType.INSTITUTION
+
+    @property
+    def recipient_display_name(self):
+        if self.is_institution_recipient:
+            return self.institution_name or self.recipient_name
+        return self.recipient_name
+
+    @property
+    def recipient_display_subtitle(self):
+        if self.is_institution_recipient:
+            return self.attention_position or self.institution_department
+        return self.recipient_position
+
     def clean(self):
         super().clean()
+        if self.is_institution_recipient:
+            if not self.institution_name:
+                raise ValidationError("Enter the institution name.")
+            if not self.institution_address:
+                raise ValidationError("Enter the institution postal address.")
+        elif not self.recipient_name:
+            raise ValidationError("Choose the member recipient.")
+
         if not self.pk:
             return
 

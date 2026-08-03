@@ -1,8 +1,11 @@
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 
 from core.models import CommitteeLetter, CommitteeLetterAudit, LetterAuditAction
+from core.services.notifications import notify_users, send_email_to_addresses
 
 
 COMMITTEE_ROLES = {
@@ -32,6 +35,8 @@ APPROVER_ROLES = {
 ISSUER_ROLES = {
     "chairperson",
 }
+
+LETTER_SUBMISSION_EMAIL = "tambulhustleyouthgroup@gmail.com"
 
 
 def is_committee_user(user):
@@ -75,6 +80,47 @@ def record_audit(letter, actor, action, status_from="", status_to="", comment=""
     )
 
 
+def notify_letter_submitted(letter, actor):
+    User = get_user_model()
+    chairpersons = list(User.objects.filter(role="chairperson", is_active=True))
+    title = "Committee Letter Submitted"
+    actor_name = actor.get_full_name() or actor.username
+    message = (
+        f"{actor_name} submitted letter {letter.reference_number} "
+        f"for chairperson approval."
+    )
+    link = f"/committee/letters/{letter.pk}/"
+
+    notify_users(
+        recipients=chairpersons,
+        title=title,
+        message=message,
+        link=link,
+        send_email=True,
+    )
+
+    chairperson_emails = {
+        (chairperson.email or "").strip().lower()
+        for chairperson in chairpersons
+        if chairperson.email
+    }
+    notification_email = (
+        getattr(
+            settings,
+            "COMMITTEE_LETTER_SUBMISSION_EMAIL",
+            LETTER_SUBMISSION_EMAIL,
+        )
+        or ""
+    ).strip()
+    if notification_email and notification_email.lower() not in chairperson_emails:
+        send_email_to_addresses(
+            [notification_email],
+            subject=title,
+            message=message,
+            link=link,
+        )
+
+
 @transaction.atomic
 def submit_letter(letter, actor):
     ensure_allowed(can_edit_letter(actor, letter))
@@ -85,6 +131,7 @@ def submit_letter(letter, actor):
     letter.review_comment = ""
     letter.save(update_fields=["status", "review_comment", "updated_at"])
     record_audit(letter, actor, LetterAuditAction.SUBMITTED, before, letter.status)
+    transaction.on_commit(lambda: notify_letter_submitted(letter, actor))
     return letter
 
 
@@ -150,10 +197,19 @@ def create_correction_draft(letter, actor):
     correction = CommitteeLetter.objects.create(
         letter_type=letter.letter_type,
         letter_date=timezone.localdate(),
+        recipient_type=letter.recipient_type,
         recipient_name=letter.recipient_name,
         recipient_position=letter.recipient_position,
         recipient_organization="",
         recipient_address=letter.recipient_address,
+        institution_type=letter.institution_type,
+        institution_name=letter.institution_name,
+        institution_department=letter.institution_department,
+        attention_name=letter.attention_name,
+        attention_position=letter.attention_position,
+        institution_address=letter.institution_address,
+        institution_email=letter.institution_email,
+        institution_phone=letter.institution_phone,
         salutation=letter.salutation,
         subject=letter.subject,
         body=letter.body,

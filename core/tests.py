@@ -29,6 +29,7 @@ from core.services.notifications import (
     normalize_notification_link,
     send_email_notifications,
 )
+from core.services.committee_letters import committee_letter_recipient_lines
 
 
 class NotificationLinkNormalizationTests(SimpleTestCase):
@@ -110,6 +111,44 @@ class CommitteeLetterWorkflowTests(TestCase):
 
         self.assertEqual(letter.reference_number, f"THYG/COM/{year}/001")
         self.assertTrue(letter.verification_code.startswith(f"THYG-{year}-001-"))
+
+    @override_settings(
+        NOTIFICATIONS_SEND_EMAILS=True,
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        SITE_BASE_URL="https://tambul.org",
+    )
+    def test_submit_notifies_chairperson_and_group_email(self):
+        self.approver.email = "chairperson@example.com"
+        self.approver.save(update_fields=["email"])
+        letter = self._letter()
+        self.client.force_login(self.creator)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                reverse("committee-letter-submit", args=[letter.pk])
+            )
+
+        self.assertRedirects(
+            response,
+            reverse("committee-letter-detail", args=[letter.pk]),
+            fetch_redirect_response=False,
+        )
+        letter.refresh_from_db()
+        self.assertEqual(letter.status, CommitteeLetter.STATUS_SUBMITTED)
+        self.assertTrue(
+            Notification.objects.filter(
+                recipient=self.approver,
+                title="Committee Letter Submitted",
+                link=f"/committee/letters/{letter.pk}/",
+            ).exists()
+        )
+        email_recipients = {
+            recipient
+            for email in mail.outbox
+            for recipient in email.to
+        }
+        self.assertIn("chairperson@example.com", email_recipients)
+        self.assertIn("tambulhustleyouthgroup@gmail.com", email_recipients)
 
     def test_approval_generates_locked_record_pdf_and_audit_entries(self):
         letter = self._letter(status=CommitteeLetter.STATUS_SUBMITTED)
@@ -346,6 +385,62 @@ class CommitteeLetterWorkflowTests(TestCase):
         self.assertNotIn("recipient_organization", form.fields)
         self.assertNotIn("signatory", form.fields)
 
+    def test_letter_form_supports_institution_recipients(self):
+        form = CommitteeLetterForm(
+            data={
+                "letter_type": "partnership_letter",
+                "letter_date": timezone.localdate().isoformat(),
+                "recipient_type": "institution",
+                "institution_type": "government",
+                "institution_name": "Uasin Gishu County Government",
+                "institution_department": "Department of Youth Affairs",
+                "attention_name": "Director of Youth Affairs",
+                "attention_position": "County Director",
+                "institution_address": "P.O. Box 40\nEldoret",
+                "institution_email": "director@example.go.ke",
+                "institution_phone": "0700000000",
+                "salutation": "Dear Sir/Madam,",
+                "subject": "Partnership request",
+                "body": "We request partnership support.",
+                "closing_phrase": "Yours faithfully,",
+                "signatory_name": "Authorized Official",
+                "signatory_position": "Chairperson",
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        letter = form.save(commit=False)
+
+        self.assertEqual(letter.recipient_type, "institution")
+        self.assertEqual(letter.recipient_name, "Director of Youth Affairs")
+        self.assertEqual(letter.recipient_position, "County Director")
+        self.assertEqual(letter.recipient_display_name, "Uasin Gishu County Government")
+        self.assertEqual(letter.recipient_display_subtitle, "County Director")
+
+    def test_institution_recipient_lines_use_official_address_block(self):
+        letter = CommitteeLetter(
+            recipient_type="institution",
+            recipient_name="Director of Youth Affairs",
+            recipient_position="County Director",
+            institution_name="Uasin Gishu County Government",
+            institution_department="Department of Youth Affairs",
+            attention_name="Director of Youth Affairs",
+            attention_position="County Director",
+            institution_address="P.O. Box 40\nEldoret",
+        )
+
+        self.assertEqual(
+            committee_letter_recipient_lines(letter),
+            [
+                "The County Director",
+                "Department of Youth Affairs",
+                "Uasin Gishu County Government",
+                "P.O. Box 40",
+                "Eldoret",
+                "Attention: Director of Youth Affairs",
+            ],
+        )
+
 
 class MemberDashboardPeriodFilterTests(TestCase):
     def test_selected_year_filters_loan_summary_announcements_and_meeting_notes(self):
@@ -572,6 +667,211 @@ class LoanLateStatusRulesTests(TestCase):
 
 
 class CommitteeDashboardPeriodFilterTests(TestCase):
+    def test_member_section_filters_by_search_and_role(self):
+        committee = User.objects.create_user(
+            username="member_filter_committee",
+            password="pass1234",
+            role="committee",
+        )
+        target = User.objects.create_user(
+            username="target_filter_member",
+            first_name="Alice",
+            last_name="Kiptoo",
+            membership_number="THYG-100",
+            password="pass1234",
+            role="member",
+        )
+        User.objects.create_user(
+            username="other_filter_secretary",
+            first_name="Bob",
+            last_name="Kimutai",
+            membership_number="THYG-200",
+            password="pass1234",
+            role="secretary",
+        )
+
+        self.client.force_login(committee)
+        response = self.client.get(
+            reverse("committee-dashboard"),
+            {"member_search": "Alice", "member_role": "member"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["members"]), [target])
+
+    def test_loan_section_filters_by_member_status_repayment_and_balance(self):
+        committee = User.objects.create_user(
+            username="loan_filter_committee",
+            password="pass1234",
+            role="committee",
+        )
+        target_member = User.objects.create_user(
+            username="alice_loan_filter",
+            first_name="Alice",
+            last_name="Loan",
+            password="pass1234",
+            role="member",
+        )
+        other_member = User.objects.create_user(
+            username="bob_loan_filter",
+            first_name="Bob",
+            last_name="Loan",
+            password="pass1234",
+            role="member",
+        )
+        target_loan = Loan.objects.create(
+            member=target_member,
+            amount=1000,
+            total_paid_so_far=0,
+            interest=0,
+            status="approved",
+            due_date=date(2028, 1, 1),
+        )
+        other_loan = Loan.objects.create(
+            member=other_member,
+            amount=1000,
+            total_paid_so_far=1100,
+            interest=0,
+            status="approved",
+            due_date=date(2028, 1, 1),
+        )
+        Loan.objects.filter(pk=target_loan.pk).update(loan_date=date(2026, 3, 10))
+        Loan.objects.filter(pk=other_loan.pk).update(loan_date=date(2026, 3, 12))
+
+        self.client.force_login(committee)
+        response = self.client.get(
+            reverse("committee-dashboard"),
+            {
+                "year": "2026",
+                "loan_member": "Alice",
+                "loan_status": "approved",
+                "loan_repayment_status": "not_paid",
+                "loan_has_balance": "yes",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["loans"], [target_loan])
+        self.assertEqual(response.context["filtered_loan_disbursed"], target_loan.amount)
+        self.assertEqual(response.context["filtered_loan_repaid"], target_loan.total_paid_so_far)
+        self.assertEqual(
+            response.context["filtered_loan_outstanding"],
+            target_loan.current_balance(),
+        )
+
+    def test_financial_letter_announcement_and_minute_filters(self):
+        committee = User.objects.create_user(
+            username="section_filter_committee",
+            first_name="Filter",
+            last_name="Committee",
+            password="pass1234",
+            role="committee",
+        )
+        member = User.objects.create_user(
+            username="section_filter_member",
+            first_name="Target",
+            last_name="Member",
+            password="pass1234",
+            role="member",
+        )
+        other_member = User.objects.create_user(
+            username="section_filter_other",
+            first_name="Other",
+            last_name="Member",
+            password="pass1234",
+            role="member",
+        )
+        contribution = Contribution.objects.create(
+            member=member,
+            amount=250,
+            month=date(2026, 4, 1),
+            status="fully_paid",
+        )
+        Contribution.objects.create(
+            member=other_member,
+            amount=100,
+            month=date(2026, 4, 1),
+            status="not_paid",
+        )
+        welfare = Welfare.objects.create(
+            member=member,
+            amount=500,
+            description="Target welfare support",
+            status="partially_paid",
+        )
+        Welfare.objects.filter(pk=welfare.pk).update(date_given=date(2026, 4, 8))
+        Welfare.objects.create(
+            member=other_member,
+            amount=200,
+            description="Other welfare",
+            status="not_paid",
+        )
+        letter = CommitteeLetter.objects.create(
+            letter_type="partnership_letter",
+            recipient_type="institution",
+            recipient_name="Director",
+            recipient_position="Director",
+            institution_name="Target Institution",
+            institution_address="P.O. Box 1",
+            subject="Target partnership",
+            body="Partnership request.",
+            created_by=committee,
+            signatory_name="Authorized Official",
+            signatory_position="Chairperson",
+            status=CommitteeLetter.STATUS_DRAFT,
+        )
+        announcement = Announcement.objects.create(
+            title="Target announcement",
+            message="Filtered announcement body.",
+        )
+        other_announcement = Announcement.objects.create(
+            title="Other announcement",
+            message="Other body.",
+        )
+        Announcement.objects.filter(pk=announcement.pk).update(
+            published_at=timezone.make_aware(datetime(2026, 4, 5, 10, 0))
+        )
+        Announcement.objects.filter(pk=other_announcement.pk).update(
+            published_at=timezone.make_aware(datetime(2026, 4, 6, 10, 0))
+        )
+        minute = MeetingNote.objects.create(
+            title="Target minutes",
+            description="Filtered meeting note.",
+        )
+        MeetingNote.objects.create(
+            title="Other minutes",
+            description="Other meeting note.",
+        )
+        MeetingNote.objects.filter(pk=minute.pk).update(
+            created_at=timezone.make_aware(datetime(2026, 4, 7, 10, 0))
+        )
+
+        self.client.force_login(committee)
+        response = self.client.get(
+            reverse("committee-dashboard"),
+            {
+                "year": "2026",
+                "contribution_member": "Target",
+                "contribution_status": "fully_paid",
+                "welfare_member": "Target welfare",
+                "welfare_status": "late",
+                "letter_search": "Target Institution",
+                "letter_recipient_type": "institution",
+                "announcement_search": "Target announcement",
+                "minute_search": "Target minutes",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["contributions"]), [contribution])
+        self.assertEqual(response.context["filtered_contribution_total"], contribution.amount)
+        self.assertContains(response, "Total Shown")
+        self.assertContains(response, "Ksh 250.00")
+        self.assertEqual(list(response.context["welfare_records"]), [welfare])
+        self.assertEqual(list(response.context["committee_letters"]), [letter])
+        self.assertEqual(list(response.context["latest_announcements"]), [announcement])
+        self.assertEqual(list(response.context["meeting_notes"]), [minute])
+
     def test_my_summary_includes_payment_actions(self):
         committee = User.objects.create_user(
             username="payment_committee",
@@ -652,11 +952,18 @@ class CommitteeDashboardPeriodFilterTests(TestCase):
         self.assertEqual(response.context["total_loan_repaid"], 200)
         self.assertEqual(response.context["total_loan_outstanding"], january_loan.current_balance())
         self.assertEqual(set(loans), {january_loan, rejected_loan})
+        self.assertEqual(response.context["filtered_loan_disbursed"], january_loan.amount)
+        self.assertEqual(response.context["filtered_loan_repaid"], january_loan.total_paid_so_far)
+        self.assertEqual(
+            response.context["filtered_loan_outstanding"],
+            january_loan.current_balance(),
+        )
         self.assertContains(response, "loan-amount-rejected")
-        self.assertContains(response, "Total Approved")
+        self.assertContains(response, "Shown Approved Total")
         self.assertContains(response, "Ksh 1000.00")
         self.assertContains(response, "Ksh 200.00")
         self.assertContains(response, "Ksh 900.00")
+        self.assertNotContains(response, "loan.current_balance")
 
     def test_selected_year_filters_personal_summary_announcements_and_meeting_notes(self):
         committee = User.objects.create_user(

@@ -44,8 +44,18 @@
     <p><strong>Type</strong><br>{{ letter.get_letter_type_display }}</p>
     <p><strong>Letter date</strong><br>{{ letter.letter_date|date:"F d, Y" }}</p>
     <p><strong>Verification code</strong><br>{{ letter.verification_code }}</p>
-    <p><strong>Recipient</strong><br>{{ letter.recipient_name }}{% if letter.recipient_position %}<span class="subtext">{{ letter.recipient_position }}</span>{% endif %}</p>
+    <p><strong>Recipient type</strong><br>{{ letter.get_recipient_type_display }}</p>
+    <p><strong>Recipient</strong><br>{{ letter.recipient_display_name }}{% if letter.recipient_display_subtitle %}<span class="subtext">{{ letter.recipient_display_subtitle }}</span>{% endif %}</p>
+    {% if letter.is_institution_recipient %}
+    <p><strong>Institution type</strong><br>{{ letter.get_institution_type_display|default:"-" }}</p>
+    <p><strong>Attention</strong><br>{{ letter.attention_name|default:"-" }}{% if letter.attention_position %}<span class="subtext">{{ letter.attention_position }}</span>{% endif %}</p>
+    <p class="wide"><strong>Institution postal address</strong><br>{{ letter.institution_address|linebreaksbr|default:"-" }}</p>
+    {% if letter.institution_email or letter.institution_phone %}
+    <p class="wide"><strong>Institution contact</strong><br>{{ letter.institution_email|default:"-" }}{% if letter.institution_phone %}<span class="subtext">{{ letter.institution_phone }}</span>{% endif %}</p>
+    {% endif %}
+    {% else %}
     <p><strong>Postal address</strong><br>{{ letter.recipient_address|linebreaksbr|default:"-" }}</p>
+    {% endif %}
     <p><strong>Created by</strong><br>{{ letter.created_by|default:"-" }}</p>
     <p><strong>Reviewed by</strong><br>{{ letter.reviewed_by|default:"-" }}</p>
     <p><strong>Approved by</strong><br>{{ letter.approved_by|default:"-" }}</p>

@@ -50,9 +50,9 @@
           </td>
           <td>{{ letter.get_letter_type_display }}</td>
           <td>
-            {{ letter.recipient_name }}
-            {% if letter.recipient_position %}
-            <span class="subtext">{{ letter.recipient_position }}</span>
+            {{ letter.recipient_display_name }}
+            {% if letter.recipient_display_subtitle %}
+            <span class="subtext">{{ letter.recipient_display_subtitle }}</span>
             {% endif %}
           </td>
           <td>{{ letter.subject }}</td>

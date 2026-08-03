@@ -185,12 +185,9 @@
       </section>
 
       <section class="recipient">
-        <div>{{ letter.recipient_name }}</div>
-        {% if letter.recipient_position %}
-        <div>{{ letter.recipient_position }}</div>
-        {% endif %} {% if letter.recipient_address %}
-        <div>{{ letter.recipient_address|linebreaksbr }}</div>
-        {% endif %}
+        {% for line in recipient_lines %}
+        <div>{{ line }}</div>
+        {% endfor %}
       </section>
 
       <section class="body">

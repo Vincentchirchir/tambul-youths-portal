@@ -1,7 +1,15 @@
 from django import forms
 from django.contrib.auth import get_user_model
 
-from .models import CommitteeLetter, LetterTemplate, Loan, Announcement, MeetingNote
+from .models import (
+    CommitteeLetter,
+    InstitutionType,
+    LetterRecipientType,
+    LetterTemplate,
+    Loan,
+    Announcement,
+    MeetingNote,
+)
 
 
 DEFAULT_RECIPIENT_ADDRESS = "PO BOX 1109 ELDORET"
@@ -70,12 +78,18 @@ class MeetingNoteForm(forms.ModelForm):
 
 
 class CommitteeLetterForm(forms.ModelForm):
+    recipient_type = forms.ChoiceField(
+        choices=LetterRecipientType.choices,
+        widget=forms.Select(attrs={"class": "form-control", "data-recipient-type": "true"}),
+    )
     recipient_name = forms.ChoiceField(
         choices=(),
+        required=False,
         widget=forms.Select(attrs={"class": "form-control"}),
     )
     recipient_position = forms.ChoiceField(
         choices=RECIPIENT_POSITION_CHOICES,
+        required=False,
         widget=forms.Select(attrs={"class": "form-control"}),
     )
     class Meta:
@@ -83,9 +97,18 @@ class CommitteeLetterForm(forms.ModelForm):
         fields = [
             "letter_type",
             "letter_date",
+            "recipient_type",
             "recipient_name",
             "recipient_position",
             "recipient_address",
+            "institution_type",
+            "institution_name",
+            "institution_department",
+            "attention_name",
+            "attention_position",
+            "institution_address",
+            "institution_email",
+            "institution_phone",
             "salutation",
             "subject",
             "body",
@@ -98,6 +121,14 @@ class CommitteeLetterForm(forms.ModelForm):
             "letter_type": forms.Select(attrs={"class": "form-control"}),
             "letter_date": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
             "recipient_address": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+            "institution_type": forms.Select(attrs={"class": "form-control"}),
+            "institution_name": forms.TextInput(attrs={"class": "form-control"}),
+            "institution_department": forms.TextInput(attrs={"class": "form-control"}),
+            "attention_name": forms.TextInput(attrs={"class": "form-control"}),
+            "attention_position": forms.TextInput(attrs={"class": "form-control"}),
+            "institution_address": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "institution_email": forms.EmailInput(attrs={"class": "form-control"}),
+            "institution_phone": forms.TextInput(attrs={"class": "form-control"}),
             "salutation": forms.TextInput(attrs={"class": "form-control"}),
             "subject": forms.TextInput(attrs={"class": "form-control"}),
             "body": forms.Textarea(attrs={"class": "form-control", "rows": 8}),
@@ -114,6 +145,15 @@ class CommitteeLetterForm(forms.ModelForm):
         self.fields["letter_date"].required = True
         self.fields["recipient_address"].initial = DEFAULT_RECIPIENT_ADDRESS
         self.fields["recipient_position"].initial = "Member"
+        self.fields["institution_type"].choices = [("", "Select institution type"), *InstitutionType.choices]
+        self.fields["institution_type"].required = False
+        self.fields["institution_name"].required = False
+        self.fields["institution_department"].required = False
+        self.fields["attention_name"].required = False
+        self.fields["attention_position"].required = False
+        self.fields["institution_address"].required = False
+        self.fields["institution_email"].required = False
+        self.fields["institution_phone"].required = False
         self.fields["recipient_name"].choices = self._recipient_choices()
         self._preserve_current_recipient_choices()
 
@@ -152,8 +192,28 @@ class CommitteeLetterForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        recipient_type = cleaned_data.get("recipient_type")
+        recipient_name = cleaned_data.get("recipient_name")
+        recipient_position = cleaned_data.get("recipient_position")
+        institution_name = cleaned_data.get("institution_name")
+        institution_address = cleaned_data.get("institution_address")
+        attention_name = cleaned_data.get("attention_name")
+        attention_position = cleaned_data.get("attention_position")
         signatory_name = cleaned_data.get("signatory_name")
         signatory_position = cleaned_data.get("signatory_position")
+
+        if recipient_type == LetterRecipientType.INSTITUTION:
+            if not institution_name:
+                self.add_error("institution_name", "Enter the institution name.")
+            if not institution_address:
+                self.add_error("institution_address", "Enter the institution postal address.")
+            cleaned_data["recipient_name"] = attention_name or institution_name or ""
+            cleaned_data["recipient_position"] = attention_position or ""
+        else:
+            if not recipient_name:
+                self.add_error("recipient_name", "Choose the member recipient.")
+            if not recipient_position:
+                self.add_error("recipient_position", "Choose the member recipient position.")
 
         if not signatory_name or not signatory_position:
             raise forms.ValidationError(
@@ -165,6 +225,18 @@ class CommitteeLetterForm(forms.ModelForm):
     def save(self, commit=True):
         letter = super().save(commit=False)
         letter.recipient_organization = ""
+        if letter.recipient_type == LetterRecipientType.MEMBER:
+            letter.institution_type = ""
+            letter.institution_name = ""
+            letter.institution_department = ""
+            letter.attention_name = ""
+            letter.attention_position = ""
+            letter.institution_address = ""
+            letter.institution_email = ""
+            letter.institution_phone = ""
+        else:
+            letter.recipient_name = self.cleaned_data.get("recipient_name") or letter.institution_name
+            letter.recipient_position = self.cleaned_data.get("recipient_position") or ""
         if commit:
             letter.save()
             self.save_m2m()

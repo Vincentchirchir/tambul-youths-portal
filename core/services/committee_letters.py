@@ -41,9 +41,35 @@ def letter_render_context(letter, official=False):
         "organization_name": ORGANIZATION_NAME,
         "organization_tagline": ORGANIZATION_TAGLINE,
         "organization_address": ORGANIZATION_ADDRESS,
+        "recipient_lines": committee_letter_recipient_lines(letter),
         "stamp_date": format_stamp_date(letter),
         "show_stamp": official and letter.is_approved_for_pdf,
     }
+
+
+def committee_letter_recipient_lines(letter):
+    if letter.is_institution_recipient:
+        lines = []
+        if letter.attention_position:
+            lines.append(f"The {letter.attention_position}")
+        elif letter.attention_name:
+            lines.append(letter.attention_name)
+        if letter.institution_department:
+            lines.append(letter.institution_department)
+        if letter.institution_name:
+            lines.append(letter.institution_name)
+        if letter.institution_address:
+            lines.extend(line for line in letter.institution_address.splitlines() if line.strip())
+        if letter.attention_name and letter.attention_position:
+            lines.append(f"Attention: {letter.attention_name}")
+        return lines
+
+    lines = [letter.recipient_name]
+    if letter.recipient_position:
+        lines.append(letter.recipient_position)
+    if letter.recipient_address:
+        lines.extend(line for line in letter.recipient_address.splitlines() if line.strip())
+    return lines
 
 
 def generate_committee_letter_pdf(letter):
@@ -171,14 +197,8 @@ def _draw_metadata(pdf, letter, y, width):
 
 
 def _draw_recipient(pdf, letter, y, width):
-    lines = [letter.recipient_name]
-    if letter.recipient_position:
-        lines.append(letter.recipient_position)
-    if letter.recipient_address:
-        lines.extend(letter.recipient_address.splitlines())
-
     pdf.setFillColor(BLACK)
-    for line in lines:
+    for line in committee_letter_recipient_lines(letter):
         y = _draw_wrapped_text(
             pdf,
             line,

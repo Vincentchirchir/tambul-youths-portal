@@ -89,6 +89,8 @@
       <div class="welcome">
         <h2>Welcome, {{ request.user.first_name }}</h2>
         <div class="loan-cta">
+          <a href="{% url 'create_payment' %}" class="btn btn-primary">Pay</a>
+          <a href="{% url 'payment_history' %}" class="btn btn-outline-info">Payment History</a>
           {% if can_apply_loan %}
             <a href="{% url 'apply-loan' %}" class="btn btn-primary"> Apply for Loan</a>
           {% else %}
