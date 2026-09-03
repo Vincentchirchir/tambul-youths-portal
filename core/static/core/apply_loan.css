@@ -56,11 +56,20 @@
   margin-bottom: 1.2rem;
 }
 
+.form-group label {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: #0f172a;
+  font-weight: 700;
+}
+
 .form-control {
   width: 100%;
   padding: 0.75rem;
   border: 1px solid #ccc;
   border-radius: 8px;
+  color: #0f172a;
+  background: #fff;
 }
 
 .form-help,
@@ -86,6 +95,10 @@
   border-radius: 6px;
   text-decoration: none;
   font-weight: 600;
+}
+
+.loan-form [hidden] {
+  display: none !important;
 }
 
 .btn-primary {

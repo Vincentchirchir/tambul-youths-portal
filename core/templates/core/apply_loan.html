@@ -42,7 +42,7 @@
         </small>
       </div>
 
-      <button type="submit" class="btn btn-primary" data-loan-submit>
+      <button type="submit" class="btn btn-primary" data-loan-submit hidden>
         Submit Application
       </button>
       <a href="{{ cancel_url }}" class="btn btn-secondary">Cancel</a>
@@ -77,6 +77,7 @@
         requestedAmount > maxAmount;
 
       submitButton.disabled = isInvalid;
+      submitButton.hidden = isInvalid;
 
       if (!errorMessage || !hasValue) {
         return;
