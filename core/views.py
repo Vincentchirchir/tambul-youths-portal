@@ -164,10 +164,12 @@ def filter_text(queryset, value, lookups):
     if not value:
         return queryset
 
-    query = Q()
-    for lookup in lookups:
-        query |= Q(**{lookup: value})
-    return queryset.filter(query)
+    for term in value.split():
+        term_query = Q()
+        for lookup in lookups:
+            term_query |= Q(**{lookup: term})
+        queryset = queryset.filter(term_query)
+    return queryset
 
 
 def filter_exact(queryset, field_name, value):

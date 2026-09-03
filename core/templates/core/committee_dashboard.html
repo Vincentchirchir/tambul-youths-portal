@@ -1602,6 +1602,40 @@
       updateTabScrollHint();
     </script>
 
+    <script>
+      (() => {
+        const filters = document.querySelectorAll(".section-filters");
+        const timers = new WeakMap();
+        const delayMs = 500;
+
+        const submitFilter = (form) => {
+          if (!form || form.dataset.autoSubmitting === "true") return;
+          form.dataset.autoSubmitting = "true";
+
+          if (typeof form.requestSubmit === "function") {
+            form.requestSubmit();
+            return;
+          }
+
+          form.submit();
+        };
+
+        filters.forEach((form) => {
+          form.querySelectorAll('input[type="search"]').forEach((input) => {
+            input.addEventListener("input", () => {
+              window.clearTimeout(timers.get(form));
+              timers.set(
+                form,
+                window.setTimeout(() => submitFilter(form), delayMs),
+              );
+            });
+
+            input.addEventListener("search", () => submitFilter(form));
+          });
+        });
+      })();
+    </script>
+
     <!-- ===== Chart.js Library ===== -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 

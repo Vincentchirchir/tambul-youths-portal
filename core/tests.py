@@ -832,7 +832,7 @@ class CommitteeDashboardPeriodFilterTests(TestCase):
         self.client.force_login(committee)
         response = self.client.get(
             reverse("committee-dashboard"),
-            {"member_search": "Alice", "member_role": "member"},
+            {"member_search": "Alice Kiptoo", "member_role": "member"},
         )
 
         self.assertEqual(response.status_code, 200)
@@ -882,7 +882,7 @@ class CommitteeDashboardPeriodFilterTests(TestCase):
             reverse("committee-dashboard"),
             {
                 "year": "2026",
-                "loan_member": "Alice",
+                "loan_member": "Alice Loan",
                 "loan_status": "approved",
                 "loan_repayment_status": "not_paid",
                 "loan_has_balance": "yes",
@@ -990,9 +990,9 @@ class CommitteeDashboardPeriodFilterTests(TestCase):
             reverse("committee-dashboard"),
             {
                 "year": "2026",
-                "contribution_member": "Target",
+                "contribution_member": "Target Member",
                 "contribution_status": "fully_paid",
-                "welfare_member": "Target welfare",
+                "welfare_member": "Target Member welfare",
                 "welfare_status": "late",
                 "letter_search": "Target Institution",
                 "letter_recipient_type": "institution",
