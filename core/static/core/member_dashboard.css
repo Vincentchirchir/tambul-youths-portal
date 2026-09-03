@@ -199,6 +199,10 @@ body {
   font-size: 0.95rem;
 }
 
+.loan-note--available {
+  color: #166534;
+}
+
 .overview {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
@@ -809,6 +813,10 @@ body {
   color: #b71c1c;
   font-weight: 500;
   font-size: 0.95rem;
+}
+
+.loan-note--available {
+  color: #166534;
 }
 
 .btn {

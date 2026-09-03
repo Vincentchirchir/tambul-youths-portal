@@ -51,6 +51,12 @@ from .services.notifications import (
     normalize_notification_link,
     notify_users,
 )
+from .services.loan_limits import (
+    loan_limit_block_message,
+    loan_limit_context,
+    loan_limit_remaining,
+    loan_amount_exceeds_message,
+)
 from .services.committee_letters import (
     committee_letter_pdf_filename,
     generate_committee_letter_pdf,
@@ -348,11 +354,7 @@ class MemberDashboardView(LoginRequiredMixin, TemplateView):
         ctx["loan_balance"] = sum(loan.current_balance() for loan in period_active_loans)
         ctx["today"]=date.today()
 
-        ctx["can_apply_loan"] = not Loan.objects.filter(
-            member=user,
-            repayment_status__in=["not_paid", "partially_paid", "late"],
-            status__in=["pending", "approved"],
-        ).exists()
+        ctx.update(loan_limit_context(user))
 
         ctx["loans"] = member_loans.order_by("-created_at")
         ctx["today"] = date.today()
@@ -492,12 +494,7 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
             if loan.current_balance()
         )
 
-                #Check if committee member can apply loan
-        ctx["can_apply_loan"] = not Loan.objects.filter(
-            member=user,
-            repayment_status__in=["not_paid", "partially_paid", "late"],
-            status__in=["pending", "approved"],
-        ).exists()
+        ctx.update(loan_limit_context(user))
 
         ctx["my_loans"] = personal_loans_for_period.order_by("-created_at")
         ctx["my_contributions"] = (
@@ -1679,22 +1676,29 @@ class LoanApplicationView(LoginRequiredMixin, CreateView):
     success_url = reverse_lazy("member-dashboard")
     committee_roles = COMMITTEE_ROLES
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["member"] = self.request.user
+        return kwargs
+
+    def get(self, request, *args, **kwargs):
+        if not loan_limit_context(request.user)["can_apply_loan"]:
+            messages.warning(request, loan_limit_block_message())
+            return redirect(self.get_success_url())
+        return super().get(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        if not loan_limit_context(request.user)["can_apply_loan"]:
+            messages.warning(request, loan_limit_block_message())
+            return redirect(self.get_success_url())
+        return super().post(request, *args, **kwargs)
+
     def form_valid(self, form):
         user = self.request.user
-
-        # Block duplicate unpaid or active loans
-        existing_loan = Loan.objects.filter(
-            member=user,
-            repayment_status__in=["not_paid", "partially_paid", "late"],
-            status__in=["pending", "approved"],
-        ).exists()
-
-        if existing_loan:
-            messages.warning(
-                self.request,
-                "You already have an unpaid or active loan. Please clear it before applying again.",
-            )
-            return redirect(self.get_success_url())
+        remaining = loan_limit_remaining(user)
+        if form.cleaned_data["amount"] > remaining:
+            form.add_error("amount", loan_amount_exceeds_message(remaining))
+            return self.form_invalid(form)
 
         loan = form.save(commit=False)
         loan.member = user
@@ -1730,6 +1734,7 @@ class LoanApplicationView(LoginRequiredMixin, CreateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        ctx.update(loan_limit_context(self.request.user))
         user_role = getattr(self.request.user, "role", "")
         if user_role in self.committee_roles:
             ctx["cancel_url"] = reverse("committee-dashboard")

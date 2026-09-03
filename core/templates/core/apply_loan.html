@@ -11,16 +11,88 @@
     <h2>Apply for a Loan</h2>
     <p>Please fill out the form below to request a loan.</p>
 
+    <div class="loan-limit-summary">
+      <div>
+        <span>Loan limit</span>
+        <strong>{{ loan_limit_amount_display }}</strong>
+      </div>
+      <div>
+        <span>Used principal</span>
+        <strong>{{ loan_limit_used_display }}</strong>
+      </div>
+      <div>
+        <span>Available</span>
+        <strong>{{ loan_limit_remaining_display }}</strong>
+      </div>
+    </div>
+
     <form method="post" class="loan-form">
       {% csrf_token %}
+      {% if form.non_field_errors %}
+        <div class="form-errors">{{ form.non_field_errors }}</div>
+      {% endif %}
       <div class="form-group">
         <label for="id_amount">Loan Amount (Ksh)</label>
         {{ form.amount }}
+        {% if form.amount.help_text %}
+          <small class="form-help">{{ form.amount.help_text }}</small>
+        {% endif %}
+        <small class="loan-error" data-loan-error>
+          {% for error in form.amount.errors %}{{ error }}{% endfor %}
+        </small>
       </div>
 
-      <button type="submit" class="btn btn-primary">Submit Application</button>
+      <button type="submit" class="btn btn-primary" data-loan-submit>
+        Submit Application
+      </button>
       <a href="{{ cancel_url }}" class="btn btn-secondary">Cancel</a>
     </form>
   </div>
 </section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (() => {
+    const amountInput = document.getElementById("id_amount");
+    const submitButton = document.querySelector("[data-loan-submit]");
+    const errorMessage = document.querySelector("[data-loan-error]");
+
+    if (!amountInput || !submitButton) {
+      return;
+    }
+
+    const maxAmount = Number(amountInput.dataset.loanMax || amountInput.max || 0);
+    const minAmount = Number(amountInput.min || 0);
+    const maxDisplay = amountInput.dataset.loanMaxDisplay || `Ksh ${maxAmount}`;
+    const minDisplay = amountInput.dataset.loanMinDisplay || `Ksh ${minAmount}`;
+
+    const updateSubmitState = () => {
+      const hasValue = amountInput.value.trim() !== "";
+      const requestedAmount = Number(amountInput.value);
+      const isInvalid =
+        !hasValue ||
+        Number.isNaN(requestedAmount) ||
+        requestedAmount < minAmount ||
+        requestedAmount > maxAmount;
+
+      submitButton.disabled = isInvalid;
+
+      if (!errorMessage || !hasValue) {
+        return;
+      }
+
+      if (requestedAmount > maxAmount) {
+        errorMessage.textContent = `You can only apply for up to ${maxDisplay}. Reduce the amount to continue.`;
+      } else if (requestedAmount < minAmount) {
+        errorMessage.textContent = `Loan amount must be at least ${minDisplay}.`;
+      } else {
+        errorMessage.textContent = "";
+      }
+    };
+
+    amountInput.addEventListener("input", updateSubmitState);
+    updateSubmitState();
+  })();
+</script>
 {% endblock %}

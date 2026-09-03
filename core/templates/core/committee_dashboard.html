@@ -208,13 +208,16 @@
               >Payment History</a
             >
             {% if can_apply_loan %}
+            <span class="loan-note loan-note--available">
+              Available loan limit: {{ loan_limit_remaining_display }}
+            </span>
             <a href="{% url 'apply-loan' %}" class="btn btn-primary">
               Apply for Loan</a
             >
             {% else %}
             <span class="loan-note">
-              You currently have an active or unpaid loan. Clear it before
-              applying again.
+              You have reached your {{ loan_limit_amount_display }} loan limit.
+              Clear or reduce your active or unpaid loan before applying again.
             </span>
             {% endif %}
           </div>

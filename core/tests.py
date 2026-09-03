@@ -12,7 +12,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
-from core.forms import CommitteeLetterForm, DEFAULT_RECIPIENT_ADDRESS
+from core.forms import CommitteeLetterForm, DEFAULT_RECIPIENT_ADDRESS, LoanApplicationForm
 from core.models import (
     Announcement,
     CommitteeLetter,
@@ -30,6 +30,7 @@ from core.services.notifications import (
     send_email_notifications,
 )
 from core.services.committee_letters import committee_letter_recipient_lines
+from core.services.loan_limits import loan_limit_remaining
 
 
 class NotificationLinkNormalizationTests(SimpleTestCase):
@@ -509,6 +510,144 @@ class MemberDashboardPeriodFilterTests(TestCase):
             [note.pk for note in response.context["meeting_notes"]],
             [note_2025.pk],
         )
+
+
+class LoanLimitTests(TestCase):
+    def setUp(self):
+        self.member = User.objects.create_user(
+            username="loan_limit_member",
+            password="pass1234",
+            role="member",
+        )
+
+    def test_unpaid_principal_controls_remaining_loan_limit(self):
+        Loan.objects.create(
+            member=self.member,
+            amount=Decimal("2000.00"),
+            total_paid_so_far=Decimal("1000.00"),
+            status="approved",
+        )
+
+        self.assertEqual(loan_limit_remaining(self.member), Decimal("2000.00"))
+
+    def test_fully_paid_and_rejected_loans_do_not_use_limit(self):
+        Loan.objects.create(
+            member=self.member,
+            amount=Decimal("3000.00"),
+            total_paid_so_far=Decimal("3300.00"),
+            status="approved",
+        )
+        Loan.objects.create(
+            member=self.member,
+            amount=Decimal("3000.00"),
+            status="rejected",
+        )
+
+        self.assertEqual(loan_limit_remaining(self.member), Decimal("3000.00"))
+
+    def test_dashboard_allows_application_when_limit_remains(self):
+        Loan.objects.create(
+            member=self.member,
+            amount=Decimal("1000.00"),
+            status="approved",
+        )
+        self.client.force_login(self.member)
+
+        response = self.client.get(reverse("member-dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["can_apply_loan"])
+        self.assertEqual(response.context["loan_limit_remaining"], Decimal("2000.00"))
+        self.assertContains(response, "Available loan limit: Ksh 2,000")
+        self.assertContains(response, reverse("apply-loan"))
+
+    def test_dashboard_hides_apply_button_when_limit_is_reached(self):
+        Loan.objects.create(
+            member=self.member,
+            amount=Decimal("3000.00"),
+            status="approved",
+        )
+        self.client.force_login(self.member)
+
+        response = self.client.get(reverse("member-dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["can_apply_loan"])
+        self.assertNotContains(response, reverse("apply-loan"))
+        self.assertContains(response, "You have reached your Ksh 3,000 loan limit")
+
+    def test_apply_loan_page_redirects_when_limit_is_reached(self):
+        Loan.objects.create(
+            member=self.member,
+            amount=Decimal("3000.00"),
+            status="approved",
+        )
+        self.client.force_login(self.member)
+
+        response = self.client.get(reverse("apply-loan"))
+
+        self.assertRedirects(
+            response,
+            reverse("member-dashboard"),
+            fetch_redirect_response=False,
+        )
+
+    def test_loan_application_rejects_amount_above_remaining_limit(self):
+        Loan.objects.create(
+            member=self.member,
+            amount=Decimal("1000.00"),
+            status="approved",
+        )
+        self.client.force_login(self.member)
+
+        response = self.client.post(
+            reverse("apply-loan"),
+            {"amount": "3000.00"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "You can only apply for up to Ksh 2,000. Reduce the amount to continue.",
+        )
+        self.assertEqual(Loan.objects.filter(member=self.member).count(), 1)
+
+    def test_loan_application_allows_smaller_remaining_amount(self):
+        Loan.objects.create(
+            member=self.member,
+            amount=Decimal("2500.00"),
+            status="approved",
+        )
+        self.client.force_login(self.member)
+
+        response = self.client.post(
+            reverse("apply-loan"),
+            {"amount": "500.00"},
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("member-dashboard"),
+            fetch_redirect_response=False,
+        )
+        loan = Loan.objects.get(
+            member=self.member,
+            amount=Decimal("500.00"),
+            status="pending",
+        )
+        self.assertEqual(loan.interest, Decimal("50.0000"))
+
+    def test_form_sets_max_to_remaining_limit(self):
+        Loan.objects.create(
+            member=self.member,
+            amount=Decimal("1000.00"),
+            status="approved",
+        )
+
+        form = LoanApplicationForm(member=self.member)
+
+        self.assertEqual(form.remaining_loan_limit, Decimal("2000.00"))
+        self.assertEqual(form.fields["amount"].widget.attrs["max"], "2000.00")
 
 
 class ContributionAmountUpdateTests(TestCase):

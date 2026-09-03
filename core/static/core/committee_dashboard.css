@@ -873,6 +873,16 @@ main {
   white-space: nowrap;
 }
 
+.loan-note {
+  color: #b71c1c;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.loan-note--available {
+  color: #166534;
+}
+
 /* BUTTONS & STATUS LABELS  */
 .btn {
   background: #2563eb;

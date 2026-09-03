@@ -10,6 +10,15 @@ from .models import (
     Announcement,
     MeetingNote,
 )
+from .services.loan_limits import (
+    LOAN_AMOUNT_STEP,
+    LOAN_LIMIT_AMOUNT,
+    MIN_LOAN_AMOUNT,
+    format_ksh,
+    loan_amount_exceeds_message,
+    loan_limit_block_message,
+    loan_limit_remaining,
+)
 
 
 DEFAULT_RECIPIENT_ADDRESS = "PO BOX 1109 ELDORET"
@@ -28,15 +37,37 @@ class ContributionForm(forms.Form):
     amount = forms.DecimalField(min_value=50, decimal_places=2, max_digits=10)
 
 class LoanApplicationForm(forms.ModelForm):
+    def __init__(self, *args, member=None, **kwargs):
+        self.member = member
+        super().__init__(*args, **kwargs)
+        self.remaining_loan_limit = (
+            loan_limit_remaining(member) if member else LOAN_LIMIT_AMOUNT
+        )
+        self.fields["amount"].help_text = (
+            f"Available loan limit: {format_ksh(self.remaining_loan_limit)}."
+        )
+        self.fields["amount"].widget.attrs.update({
+            "placeholder": (
+                f"Enter amount from {format_ksh(MIN_LOAN_AMOUNT)} "
+                f"to {format_ksh(self.remaining_loan_limit)}"
+            ),
+            "min": str(MIN_LOAN_AMOUNT),
+            "max": str(self.remaining_loan_limit),
+            "step": str(LOAN_AMOUNT_STEP),
+            "data-loan-max": str(self.remaining_loan_limit),
+            "data-loan-max-display": format_ksh(self.remaining_loan_limit),
+            "data-loan-min-display": format_ksh(MIN_LOAN_AMOUNT),
+        })
+
     class Meta:
         model = Loan
         fields = ["amount"]
         widgets = {
             "amount": forms.NumberInput(attrs={
                 "class": "form-control",
-                "placeholder": "Enter amount (Ksh 1000 - 3000)",
-                "min": "100",
-                "max": "3000",
+                "placeholder": "Enter loan amount",
+                "min": "100.00",
+                "max": "3000.00",
                 "step": "100",
                 "required": True,
             }),
@@ -44,8 +75,19 @@ class LoanApplicationForm(forms.ModelForm):
 
     def clean_amount(self):
         amount = self.cleaned_data["amount"]
-        if amount < 1000 or amount > 3000:
-            raise forms.ValidationError("Loan amount must be between Ksh 1000 and Ksh 3000.")
+        remaining = (
+            loan_limit_remaining(self.member)
+            if self.member
+            else LOAN_LIMIT_AMOUNT
+        )
+        if remaining < MIN_LOAN_AMOUNT:
+            raise forms.ValidationError(loan_limit_block_message())
+        if amount < MIN_LOAN_AMOUNT:
+            raise forms.ValidationError(
+                f"Loan amount must be at least {format_ksh(MIN_LOAN_AMOUNT)}."
+            )
+        if amount > remaining:
+            raise forms.ValidationError(loan_amount_exceeds_message(remaining))
         return amount
 
 class AnnouncementForm(forms.ModelForm):
