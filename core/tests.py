@@ -176,7 +176,8 @@ class HomepageDynamicContentTests(TestCase):
         self.assertContains(response, "announcement-ticker")
         self.assertContains(response, "Upcoming")
         self.assertContains(response, "Group Project Champion")
-        self.assertContains(response, "supporting group projects")
+        self.assertContains(response, "group support record")
+        self.assertContains(response, "group funds handled responsibly")
         self.assertNotContains(response, "repayment rate with")
         self.assertNotContains(response, "approved loans")
 

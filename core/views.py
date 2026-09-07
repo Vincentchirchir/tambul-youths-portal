@@ -459,8 +459,10 @@ def loan_repayment_leaders(limit=3):
                 "fully_paid_loans": stats["fully_paid_loans"],
                 "latest_activity": stats["latest_activity"],
                 "summary": (
-                    "Recognized for consistently supporting group projects "
-                    "and helping the group move forward."
+                    f"{format_percentage(stats['total_repaid'], stats['total_due'])} "
+                    f"group support record with "
+                    f"{format_compact_ksh(stats['total_repaid'])} "
+                    "group funds handled responsibly."
                 ),
             }
         )
