@@ -389,7 +389,7 @@ def homepage_hero_stats():
         },
         {
             "value": format_compact_ksh(total_disbursed),
-            "label": "Loan Disbursed Among Members",
+            "label": "Loans Disbursed",
         },
         {
             "value": format_percentage(repayment_total, repayment_expected),
@@ -443,18 +443,6 @@ def loan_repayment_leaders(limit=3):
             if stats["total_due"] > 0
             else Decimal("0")
         )
-        loan_word = "loan" if stats["loan_count"] == 1 else "loans"
-        if stats["fully_paid_loans"]:
-            summary = (
-                f"Fully repaid {stats['fully_paid_loans']} of "
-                f"{stats['loan_count']} approved {loan_word}."
-            )
-        else:
-            summary = (
-                f"Repaid {format_compact_ksh(stats['total_repaid'])} "
-                f"across {stats['loan_count']} approved {loan_word}."
-            )
-
         leaders.append(
             {
                 "member": stats["member"],
@@ -470,7 +458,10 @@ def loan_repayment_leaders(limit=3):
                 "loan_count": stats["loan_count"],
                 "fully_paid_loans": stats["fully_paid_loans"],
                 "latest_activity": stats["latest_activity"],
-                "summary": summary,
+                "summary": (
+                    "Recognized for consistently supporting group projects "
+                    "and helping the group move forward."
+                ),
             }
         )
 

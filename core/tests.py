@@ -151,8 +151,8 @@ class HomepageDynamicContentTests(TestCase):
             response.context["hero_stats"],
             [
                 {"value": "3", "label": "Active Youth Members"},
-                {"value": "Ksh 4.5K+", "label": "Loan Disbursed Among Members"},
-                {"value": "100%", "label": "Loan Repayment Rate"},
+                {"value": "Ksh 4.5K+", "label": "Total Loans Disbursed"},
+                {"value": "100%", "label": "Overall Loan Repayment Rate"},
             ],
         )
         self.assertEqual(
@@ -175,7 +175,10 @@ class HomepageDynamicContentTests(TestCase):
         self.assertContains(response, "Future group meeting")
         self.assertContains(response, "announcement-ticker")
         self.assertContains(response, "Upcoming")
-        self.assertContains(response, "Loan Repayment Leader")
+        self.assertContains(response, "Group Project Champion")
+        self.assertContains(response, "supporting group projects")
+        self.assertNotContains(response, "repayment rate with")
+        self.assertNotContains(response, "approved loans")
 
 
 class CommitteeLetterWorkflowTests(TestCase):

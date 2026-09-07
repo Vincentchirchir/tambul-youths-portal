@@ -478,8 +478,8 @@ Hustle Youth Group{% endblock %} {% block extra_css %}
         <p class="eyebrow" id="members-title">Recognition</p>
         <h2>Outstanding Members of the Year</h2>
         <p class="section-intro">
-          These members have demonstrated exceptional commitment, growth, and
-          community spirit throughout the year.
+          These members are recognized for consistently supporting group projects
+          and helping the group move forward.
         </p>
       </div>
 
@@ -498,21 +498,17 @@ Hustle Youth Group{% endblock %} {% block extra_css %}
               </div>
             {% endif %}
             <h3>{{ item.name }}</h3>
-            <p class="time">Loan Repayment Leader</p>
-            <p>
-              {{ item.repayment_rate_display }} repayment rate with
-              {{ item.total_repaid_display }} repaid.
-            </p>
+            <p class="time">Group Project Champion</p>
             <p>{{ item.summary }}</p>
           </article>
         {% empty %}
           <article class="insight-card insight-card--empty">
             <div class="member-photo member-photo--fallback">TY</div>
             <h3>No Leaders Yet</h3>
-            <p class="time">Loan Repayment Leader</p>
+            <p class="time">Group Project Champion</p>
             <p>
-              Members will appear here automatically after approved loans start
-              receiving repayments.
+              Members will appear here automatically as group project
+              participation grows.
             </p>
           </article>
         {% endfor %}
