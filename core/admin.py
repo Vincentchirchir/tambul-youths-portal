@@ -40,7 +40,8 @@ class MeetingNoteAdmin(admin.ModelAdmin):
 
 @admin.register(Announcement)
 class AnnouncementAdmin(admin.ModelAdmin):
-    list_display = ("title", "published_at")
+    list_display = ("title", "announcement_date", "published_at")
+    list_filter = ("announcement_date", "published_at")
     search_fields = ("title", "message")
     ordering = ("-published_at",)
 

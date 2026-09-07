@@ -22,6 +22,7 @@ class User(AbstractUser):
     phone=models.CharField(max_length=15, blank=True, null=True)
     membership_number=models.CharField(max_length=50, unique=True, null=True)
     national_id = models.CharField(max_length=20,blank=True, null=True)
+    profile_photo = models.ImageField(upload_to="profile_photos/", blank=True, null=True)
 
 
     USERNAME_FIELD='username'

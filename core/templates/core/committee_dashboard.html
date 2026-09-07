@@ -1455,18 +1455,36 @@
         <h3>Analytics Overview</h3>
         <div class="chart-grid">
           <div class="chart-box">
+            <h4>Loan Repayment Status</h4>
+            <canvas id="loanChart"></canvas>
+            <div id="loanChartSummary" class="chart-summary-table-wrap"></div>
+          </div>
+
+          <div class="chart-box">
+            <h4>Loan Repayment Completion by Due Month</h4>
+            <canvas id="loanCompletionChart"></canvas>
+            <div
+              id="loanCompletionSummary"
+              class="chart-summary-table-wrap"
+            ></div>
+          </div>
+
+          <div class="chart-box">
+            <h4>Top 5 Approved Loan Applicants ({{ period_label }})</h4>
+            <canvas id="topContribChart"></canvas>
+            <div
+              id="topApplicantsSummary"
+              class="chart-summary-table-wrap"
+            ></div>
+          </div>
+
+          <div class="chart-box">
             <h4>Monthly Contributions ({{ period_label }})</h4>
             <canvas id="contribChart"></canvas>
             <div
               id="contribChartSummary"
               class="chart-summary-table-wrap"
             ></div>
-          </div>
-
-          <div class="chart-box">
-            <h4>Loan Repayment Status</h4>
-            <canvas id="loanChart"></canvas>
-            <div id="loanChartSummary" class="chart-summary-table-wrap"></div>
           </div>
 
           <div class="chart-box">
@@ -1479,10 +1497,10 @@
           </div>
 
           <div class="chart-box">
-            <h4>Top 5 Approved Loan Applicants ({{ period_label }})</h4>
-            <canvas id="topContribChart"></canvas>
+            <h4>Monthly Welfare Completion ({{ period_label }})</h4>
+            <canvas id="welfareCompletionChart"></canvas>
             <div
-              id="topApplicantsSummary"
+              id="welfareCompletionSummary"
               class="chart-summary-table-wrap"
             ></div>
           </div>
@@ -1644,11 +1662,22 @@
       const {
         monthlyLabels = [],
         monthlyValues = [],
+        monthlyFullyPaidCounts = [],
+        monthlyExpectedMemberCounts = [],
+        monthlyCompletionValues = [],
         loanLabels = [],
         loanCounts = [],
         loanTotals = [],
+        loanRepaymentMonthlyLabels = [],
+        loanDueCounts = [],
+        loanFullyPaidDueCounts = [],
+        loanRepaymentCompletionValues = [],
         welfareLabels = [],
         welfareTotals = [],
+        welfareMonthlyLabels = [],
+        welfareFullyPaidCounts = [],
+        welfareExpectedMemberCounts = [],
+        welfareCompletionValues = [],
         topContributors = [],
         topContribValues = [],
       } = chartData;
@@ -1659,6 +1688,13 @@
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         })}`;
+      const formatPercent = (value) => {
+        const number = Number(value || 0);
+        return `${number.toLocaleString(undefined, {
+          minimumFractionDigits: Number.isInteger(number) ? 0 : 1,
+          maximumFractionDigits: 1,
+        })}%`;
+      };
       const parseHexColor = (value) => {
         const color = String(value || "").replace("#", "");
         if (color.length !== 6) return null;
@@ -1826,6 +1862,27 @@
           </div>
         `;
       };
+      const percentageChartOptions = () => ({
+        responsive: true,
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 100,
+            ticks: {
+              callback: (value) => `${value}%`,
+            },
+          },
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (context) =>
+                `${context.dataset.label}: ${formatPercent(context.parsed.y)}`,
+            },
+          },
+        },
+      });
 
       // Monthly Contributions Trend
       new Chart(document.getElementById("contribChart"), {
@@ -1840,10 +1897,60 @@
               backgroundColor: "rgba(0,191,165,0.15)",
               tension: 0.4,
               fill: true,
+              yAxisID: "y",
+            },
+            {
+              label: "Fully Paid %",
+              data: monthlyCompletionValues,
+              borderColor: "#2563eb",
+              backgroundColor: "rgba(37,99,235,0.12)",
+              tension: 0.35,
+              fill: false,
+              yAxisID: "y1",
             },
           ],
         },
-        options: { responsive: true, plugins: { legend: { display: false } } },
+        options: {
+          responsive: true,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: {
+              display: true,
+              labels: {
+                usePointStyle: true,
+                pointStyle: "circle",
+                boxWidth: 10,
+              },
+            },
+            tooltip: {
+              callbacks: {
+                label: (context) => {
+                  if (context.dataset.yAxisID === "y1") {
+                    return `${context.dataset.label}: ${formatPercent(context.parsed.y)}`;
+                  }
+                  return `${context.dataset.label}: ${formatCurrency(context.parsed.y)}`;
+                },
+              },
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: (value) => Number(value).toLocaleString(),
+              },
+            },
+            y1: {
+              beginAtZero: true,
+              max: 100,
+              position: "right",
+              grid: { drawOnChartArea: false },
+              ticks: {
+                callback: (value) => `${value}%`,
+              },
+            },
+          },
+        },
       });
 
       const contribSummary = document.getElementById("contribChartSummary");
@@ -1851,12 +1958,22 @@
         container: contribSummary,
         headers: [
           { label: "Month" },
+          { label: "Fully Paid Members", align: "center" },
           { label: "Total Contribution", align: "right" },
+          { label: "Fully Paid %", align: "right" },
         ],
         rows: monthlyLabels.map((label, index) => [
           { content: label },
           {
+            content: `${monthlyFullyPaidCounts[index] ?? 0}/${monthlyExpectedMemberCounts[index] ?? 0}`,
+            align: "center",
+          },
+          {
             content: formatCurrency(monthlyValues[index] ?? 0),
+            align: "right",
+          },
+          {
+            content: formatPercent(monthlyCompletionValues[index] ?? 0),
             align: "right",
           },
         ]),
@@ -1967,6 +2084,90 @@
           },
         ]),
         emptyMessage: "No welfare data available yet.",
+      });
+
+      // Monthly Welfare Completion
+      new Chart(document.getElementById("welfareCompletionChart"), {
+        type: "bar",
+        data: {
+          labels: welfareMonthlyLabels,
+          datasets: [
+            {
+              label: "Fully Paid %",
+              data: welfareCompletionValues,
+              backgroundColor: "#2563eb",
+              borderRadius: 4,
+            },
+          ],
+        },
+        options: percentageChartOptions(),
+      });
+
+      const welfareCompletionSummary = document.getElementById(
+        "welfareCompletionSummary",
+      );
+      renderSummaryTable({
+        container: welfareCompletionSummary,
+        headers: [
+          { label: "Month" },
+          { label: "Fully Paid Members", align: "center" },
+          { label: "Fully Paid %", align: "right" },
+        ],
+        rows: welfareMonthlyLabels.map((label, index) => [
+          { content: label },
+          {
+            content: `${welfareFullyPaidCounts[index] ?? 0}/${welfareExpectedMemberCounts[index] ?? 0}`,
+            align: "center",
+          },
+          {
+            content: formatPercent(welfareCompletionValues[index] ?? 0),
+            align: "right",
+          },
+        ]),
+        emptyMessage: "No welfare completion data available yet.",
+      });
+
+      // Loan Repayment Completion by Due Month
+      new Chart(document.getElementById("loanCompletionChart"), {
+        type: "bar",
+        data: {
+          labels: loanRepaymentMonthlyLabels,
+          datasets: [
+            {
+              label: "Fully Paid %",
+              data: loanRepaymentCompletionValues,
+              backgroundColor: "#0f766e",
+              borderRadius: 4,
+            },
+          ],
+        },
+        options: percentageChartOptions(),
+      });
+
+      const loanCompletionSummary = document.getElementById(
+        "loanCompletionSummary",
+      );
+      renderSummaryTable({
+        container: loanCompletionSummary,
+        headers: [
+          { label: "Due Month" },
+          { label: "Fully Paid Loans", align: "center" },
+          { label: "Repayment %", align: "right" },
+        ],
+        rows: loanRepaymentMonthlyLabels.map((label, index) => [
+          { content: label },
+          {
+            content: `${loanFullyPaidDueCounts[index] ?? 0}/${loanDueCounts[index] ?? 0}`,
+            align: "center",
+          },
+          {
+            content: loanDueCounts[index]
+              ? formatPercent(loanRepaymentCompletionValues[index] ?? 0)
+              : "No loans due",
+            align: "right",
+          },
+        ]),
+        emptyMessage: "No loan repayment completion data available yet.",
       });
 
       // Top 5 Contributors

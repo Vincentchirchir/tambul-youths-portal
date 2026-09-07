@@ -2,7 +2,7 @@ from django.views.generic import TemplateView, CreateView, ListView, View, Detai
 from django.views.generic.edit import FormView, UpdateView
 from django.urls import reverse_lazy, reverse
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Sum, F, ExpressionWrapper, DecimalField, Case, When, Value, Count, Q
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
@@ -309,8 +309,243 @@ self.addEventListener('fetch', () => {
     response["Cache-Control"] = "no-cache"
     return response
 
+
+def format_compact_number(value):
+    value = Decimal(value or 0)
+    if value >= Decimal("1000000"):
+        compact_value = (value / Decimal("1000000")).quantize(
+            Decimal("0.1"),
+            rounding=ROUND_HALF_UP,
+        )
+        suffix = "M+"
+    elif value >= Decimal("1000"):
+        compact_value = (value / Decimal("1000")).quantize(
+            Decimal("0.1"),
+            rounding=ROUND_HALF_UP,
+        )
+        suffix = "K+"
+    else:
+        return f"{int(value.quantize(Decimal('1'), rounding=ROUND_HALF_UP)):,}"
+
+    number = f"{compact_value:.1f}".rstrip("0").rstrip(".")
+    return f"{number}{suffix}"
+
+
+def format_compact_ksh(value):
+    return f"Ksh {format_compact_number(value)}"
+
+
+def format_percentage(numerator, denominator):
+    numerator = Decimal(numerator or 0)
+    denominator = Decimal(denominator or 0)
+    if denominator <= 0:
+        return "0%"
+    percent = ((numerator / denominator) * Decimal("100")).quantize(
+        Decimal("1"),
+        rounding=ROUND_HALF_UP,
+    )
+    return f"{percent}%"
+
+
+def percentage_number(numerator, denominator):
+    numerator = Decimal(numerator or 0)
+    denominator = Decimal(denominator or 0)
+    if denominator <= 0:
+        return 0.0
+    percent = ((numerator / denominator) * Decimal("100")).quantize(
+        Decimal("0.1"),
+        rounding=ROUND_HALF_UP,
+    )
+    return float(percent)
+
+
+def member_display_name(member):
+    return (member.get_full_name() or member.username).strip()
+
+
+def member_initials(member):
+    source_names = [member.first_name, member.last_name]
+    initials = "".join(name[:1].upper() for name in source_names if name)
+    if initials:
+        return initials[:2]
+    return member.username[:2].upper()
+
+
+def homepage_hero_stats():
+    approved_loans = Loan.objects.filter(status="approved")
+    total_disbursed = approved_loans.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+    repayment_total = Decimal("0.00")
+    repayment_expected = Decimal("0.00")
+
+    for loan in approved_loans:
+        balance_due = loan.total_balance
+        repayment_expected += balance_due
+        repayment_total += min(loan.total_paid_so_far, balance_due)
+
+    return [
+        {
+            "value": f"{User.objects.filter(is_active=True).exclude(role='admin').count():,}",
+            "label": "Active Youth Members",
+        },
+        {
+            "value": format_compact_ksh(total_disbursed),
+            "label": "Loan Disbursed Among Members",
+        },
+        {
+            "value": format_percentage(repayment_total, repayment_expected),
+            "label": "Loan Repayment Rate",
+        },
+    ]
+
+
+def loan_repayment_leaders(limit=3):
+    member_stats = {}
+    approved_loans = (
+        Loan.objects.filter(status="approved", member__is_active=True)
+        .exclude(member__role="admin")
+        .select_related("member")
+    )
+
+    for loan in approved_loans:
+        total_due = loan.total_balance
+        if total_due <= 0:
+            continue
+
+        member = loan.member
+        stats = member_stats.setdefault(
+            member.pk,
+            {
+                "member": member,
+                "loan_count": 0,
+                "fully_paid_loans": 0,
+                "total_due": Decimal("0.00"),
+                "total_repaid": Decimal("0.00"),
+                "latest_activity": date.min,
+            },
+        )
+        amount_repaid = min(loan.total_paid_so_far, total_due)
+        stats["loan_count"] += 1
+        stats["total_due"] += total_due
+        stats["total_repaid"] += amount_repaid
+        if loan.current_balance() == 0 or loan.repayment_status == "fully_paid":
+            stats["fully_paid_loans"] += 1
+        latest_activity = loan.repayment_updated_at or loan.loan_date or date.min
+        if latest_activity > stats["latest_activity"]:
+            stats["latest_activity"] = latest_activity
+
+    leaders = []
+    for stats in member_stats.values():
+        if stats["total_repaid"] <= 0:
+            continue
+
+        repayment_rate = (
+            (stats["total_repaid"] / stats["total_due"]) * Decimal("100")
+            if stats["total_due"] > 0
+            else Decimal("0")
+        )
+        loan_word = "loan" if stats["loan_count"] == 1 else "loans"
+        if stats["fully_paid_loans"]:
+            summary = (
+                f"Fully repaid {stats['fully_paid_loans']} of "
+                f"{stats['loan_count']} approved {loan_word}."
+            )
+        else:
+            summary = (
+                f"Repaid {format_compact_ksh(stats['total_repaid'])} "
+                f"across {stats['loan_count']} approved {loan_word}."
+            )
+
+        leaders.append(
+            {
+                "member": stats["member"],
+                "name": member_display_name(stats["member"]),
+                "initials": member_initials(stats["member"]),
+                "repayment_rate": repayment_rate,
+                "repayment_rate_display": format_percentage(
+                    stats["total_repaid"],
+                    stats["total_due"],
+                ),
+                "total_repaid": stats["total_repaid"],
+                "total_repaid_display": format_compact_ksh(stats["total_repaid"]),
+                "loan_count": stats["loan_count"],
+                "fully_paid_loans": stats["fully_paid_loans"],
+                "latest_activity": stats["latest_activity"],
+                "summary": summary,
+            }
+        )
+
+    leaders.sort(
+        key=lambda item: (
+            item["repayment_rate"],
+            item["fully_paid_loans"],
+            item["total_repaid"],
+            item["loan_count"],
+            item["latest_activity"],
+        ),
+        reverse=True,
+    )
+    return leaders[:limit]
+
+
+def announcement_display_date(announcement):
+    if announcement.announcement_date:
+        return announcement.announcement_date
+    if announcement.published_at:
+        return timezone.localtime(announcement.published_at).date()
+    return timezone.localdate()
+
+
+def announcement_homepage_item(announcement, today):
+    display_date = announcement_display_date(announcement)
+    return {
+        "announcement": announcement,
+        "date": display_date,
+        "is_previous": display_date < today,
+        "label": "Previous" if display_date < today else "Recent",
+    }
+
+
+def homepage_announcements_context():
+    today = timezone.localdate()
+    items = [
+        announcement_homepage_item(announcement, today)
+        for announcement in Announcement.objects.select_related("created_by").order_by("-published_at")[:20]
+    ]
+    items.sort(
+        key=lambda item: (item["date"], item["announcement"].published_at),
+        reverse=True,
+    )
+
+    latest = items[0] if items else None
+    remaining = [
+        item
+        for item in items
+        if not latest or item["announcement"].pk != latest["announcement"].pk
+    ]
+
+    return {
+        "latest_announcement": latest,
+        "upcoming_announcements": sorted(
+            [item for item in items if not item["is_previous"]],
+            key=lambda item: (item["date"], item["announcement"].published_at),
+        )[:8],
+        "recent_announcements": [
+            item for item in remaining if not item["is_previous"]
+        ][:3],
+        "previous_announcements": [
+            item for item in remaining if item["is_previous"]
+        ][:4],
+    }
+
 class Index(TemplateView):
     template_name="core/index.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["hero_stats"] = homepage_hero_stats()
+        ctx["outstanding_members"] = loan_repayment_leaders()
+        ctx.update(homepage_announcements_context())
+        return ctx
 
 class MemberDashboardView(LoginRequiredMixin, TemplateView):
     template_name="core/member_dashboard.html"
@@ -636,7 +871,21 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         ctx["latest_announcements"] = announcements.order_by("-published_at")[:5]
 
         #4️ ANALYTICS DATA
-        # Monthly contribution
+        if month:
+            dashboard_months = [month]
+        else:
+            today = timezone.localdate()
+            last_month = today.month if year == today.year else 12
+            dashboard_months = list(range(1, last_month + 1))
+        monthly_labels = [
+            calendar.month_abbr[month_number]
+            for month_number in dashboard_months
+        ]
+        active_member_count = (
+            User.objects.filter(is_active=True).exclude(role="admin").count()
+        )
+
+        # Monthly contribution totals and fully-paid completion
         monthly = (
             contributions_for_period.filter(status__in=["fully_paid", "partially_paid"])
             .annotate(month_label=TruncMonth("month"))
@@ -644,9 +893,44 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
             .annotate(total=Sum("amount"))
             .order_by("month_label")
         )
+        monthly_totals_by_month = {
+            item["month_label"].month: item["total"] or Decimal("0.00")
+            for item in monthly
+            if item["month_label"]
+        }
+        monthly_fully_paid = (
+            contributions_for_period.filter(status="fully_paid", member__is_active=True)
+            .exclude(member__role="admin")
+            .annotate(month_label=TruncMonth("month"))
+            .values("month_label")
+            .annotate(total=Count("member", distinct=True))
+            .order_by("month_label")
+        )
+        monthly_fully_paid_by_month = {
+            item["month_label"].month: item["total"]
+            for item in monthly_fully_paid
+            if item["month_label"]
+        }
 
-        ctx["monthly_labels"] = [m["month_label"].strftime("%b") for m in monthly]
-        ctx["monthly_values"] = [float(m["total"]) for m in monthly]
+        ctx["monthly_labels"] = monthly_labels
+        ctx["monthly_values"] = [
+            float(monthly_totals_by_month.get(month_number, Decimal("0.00")))
+            for month_number in dashboard_months
+        ]
+        ctx["monthly_fully_paid_counts"] = [
+            monthly_fully_paid_by_month.get(month_number, 0)
+            for month_number in dashboard_months
+        ]
+        ctx["monthly_expected_member_counts"] = [
+            active_member_count for _month_number in dashboard_months
+        ]
+        ctx["monthly_completion_values"] = [
+            percentage_number(
+                monthly_fully_paid_by_month.get(month_number, 0),
+                active_member_count,
+            )
+            for month_number in dashboard_months
+        ]
 
         # Loan repayment distribution for approved loans
         repayment_order = [
@@ -677,6 +961,47 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         ctx["loan_counts"] = [loan_stats.get(key, {}).get("count", 0) for key, _ in repayment_order]
         ctx["loan_totals"] = [loan_stats.get(key, {}).get("total", 0) for key, _ in repayment_order]
 
+        # Monthly loan repayment completion by due month
+        approved_loans_due_for_period = filter_by_dashboard_period(
+            Loan.objects.filter(status="approved", due_date__isnull=False),
+            "due_date",
+            year,
+            month,
+        )
+        monthly_due_loans = (
+            approved_loans_due_for_period
+            .annotate(month_label=TruncMonth("due_date"))
+            .values("month_label")
+            .annotate(
+                due_count=Count("id"),
+                fully_paid_count=Count("id", filter=Q(repayment_status="fully_paid")),
+            )
+            .order_by("month_label")
+        )
+        monthly_due_loans_by_month = {
+            item["month_label"].month: item
+            for item in monthly_due_loans
+            if item["month_label"]
+        }
+        ctx["loan_repayment_monthly_labels"] = monthly_labels
+        ctx["loan_due_counts"] = [
+            monthly_due_loans_by_month.get(month_number, {}).get("due_count", 0)
+            for month_number in dashboard_months
+        ]
+        ctx["loan_fully_paid_due_counts"] = [
+            monthly_due_loans_by_month.get(month_number, {}).get("fully_paid_count", 0)
+            for month_number in dashboard_months
+        ]
+        ctx["loan_repayment_completion_values"] = [
+            percentage_number(
+                monthly_due_loans_by_month
+                .get(month_number, {})
+                .get("fully_paid_count", 0),
+                monthly_due_loans_by_month.get(month_number, {}).get("due_count", 0),
+            )
+            for month_number in dashboard_months
+        ]
+
         # Welfare totals by status
         welfare_stats = (
             welfare_for_period
@@ -685,6 +1010,34 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         )
         ctx["welfare_labels"] = [w["status"] for w in welfare_stats]
         ctx["welfare_totals"] = [float(w["total"]) for w in welfare_stats]
+        monthly_welfare_fully_paid = (
+            welfare_for_period.filter(status="fully_paid", member__is_active=True)
+            .exclude(member__role="admin")
+            .annotate(month_label=TruncMonth("date_given"))
+            .values("month_label")
+            .annotate(total=Count("member", distinct=True))
+            .order_by("month_label")
+        )
+        monthly_welfare_fully_paid_by_month = {
+            item["month_label"].month: item["total"]
+            for item in monthly_welfare_fully_paid
+            if item["month_label"]
+        }
+        ctx["welfare_monthly_labels"] = monthly_labels
+        ctx["welfare_fully_paid_counts"] = [
+            monthly_welfare_fully_paid_by_month.get(month_number, 0)
+            for month_number in dashboard_months
+        ]
+        ctx["welfare_expected_member_counts"] = [
+            active_member_count for _month_number in dashboard_months
+        ]
+        ctx["welfare_completion_values"] = [
+            percentage_number(
+                monthly_welfare_fully_paid_by_month.get(month_number, 0),
+                active_member_count,
+            )
+            for month_number in dashboard_months
+        ]
         #Meeting Reports
         meeting_notes = filter_text(
             meeting_notes_for_period,
@@ -726,11 +1079,22 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         ctx["chart_datasets"] = {
             "monthlyLabels": ctx["monthly_labels"],
             "monthlyValues": ctx["monthly_values"],
+            "monthlyFullyPaidCounts": ctx["monthly_fully_paid_counts"],
+            "monthlyExpectedMemberCounts": ctx["monthly_expected_member_counts"],
+            "monthlyCompletionValues": ctx["monthly_completion_values"],
             "loanLabels": ctx["loan_labels"],
             "loanCounts": ctx["loan_counts"],
             "loanTotals": ctx["loan_totals"],
+            "loanRepaymentMonthlyLabels": ctx["loan_repayment_monthly_labels"],
+            "loanDueCounts": ctx["loan_due_counts"],
+            "loanFullyPaidDueCounts": ctx["loan_fully_paid_due_counts"],
+            "loanRepaymentCompletionValues": ctx["loan_repayment_completion_values"],
             "welfareLabels": ctx["welfare_labels"],
             "welfareTotals": ctx["welfare_totals"],
+            "welfareMonthlyLabels": ctx["welfare_monthly_labels"],
+            "welfareFullyPaidCounts": ctx["welfare_fully_paid_counts"],
+            "welfareExpectedMemberCounts": ctx["welfare_expected_member_counts"],
+            "welfareCompletionValues": ctx["welfare_completion_values"],
             "topContributors": ctx["top_contributors"],
             "topContribValues": ctx["top_contrib_values"],
         }
@@ -1815,7 +2179,7 @@ class PostMeetingNoteView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
 class PostAnnouncementView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     model = Announcement
-    fields = ["title", "message"]
+    form_class = AnnouncementForm
     template_name = "core/post_announcement.html"
     success_url = reverse_lazy("committee-dashboard")
 

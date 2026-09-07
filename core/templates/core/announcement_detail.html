@@ -39,6 +39,9 @@
 
         <div class="announcement-meta">
           <span>
+            {% if announcement.announcement_date %}
+              Announcement date {{ announcement.announcement_date|date:"F j, Y" }} •
+            {% endif %}
             Posted on {{ announcement.published_at|date:"F j, Y, g:i a" }}
             {% if announcement.created_by %}
               • By {{ announcement.created_by.get_full_name|default:announcement.created_by.username }}

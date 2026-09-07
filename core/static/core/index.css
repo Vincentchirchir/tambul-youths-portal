@@ -1,3 +1,122 @@
+body.has-announcement-ticker{
+  --site-header-top:44px;
+}
+
+.announcement-ticker{
+  position:sticky;
+  top:0;
+  z-index:120;
+  min-height:44px;
+  display:grid;
+  grid-template-columns:auto minmax(0, 1fr);
+  align-items:center;
+  background:#06142b;
+  color:#eaf5ff;
+  border-bottom:1px solid rgba(56,164,255,.24);
+  box-shadow:0 14px 28px -24px rgba(0,0,0,.75);
+  overflow:hidden;
+}
+
+.announcement-ticker__label{
+  height:44px;
+  display:grid;
+  place-items:center;
+  padding:0 18px;
+  background:#1b6ef2;
+  color:#fff;
+  font-size:.78rem;
+  font-weight:800;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+
+.announcement-ticker__viewport{
+  overflow:hidden;
+  min-width:0;
+}
+
+.announcement-ticker__track{
+  width:max-content;
+  min-width:200%;
+  display:flex;
+  align-items:center;
+  gap:0;
+  white-space:nowrap;
+  animation:announcement-ticker-scroll 56s linear infinite;
+  will-change:transform;
+}
+
+.announcement-ticker:hover .announcement-ticker__track,
+.announcement-ticker:focus-within .announcement-ticker__track{
+  animation-play-state:paused;
+}
+
+.announcement-ticker__group{
+  display:flex;
+  align-items:center;
+  gap:42px;
+  padding-right:42px;
+}
+
+.announcement-ticker__item{
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  min-height:44px;
+  color:#eaf5ff;
+  font-size:.95rem;
+  font-weight:700;
+}
+
+.announcement-ticker__item time{
+  color:#8fcbff;
+  font-size:.82rem;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+.announcement-ticker__item span{
+  max-width:52ch;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.announcement-ticker__item::after{
+  content:"";
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:#38a4ff;
+  margin-left:32px;
+  opacity:.85;
+}
+
+.announcement-ticker__item:hover,
+.announcement-ticker__item:focus-visible{
+  color:#fff;
+  outline:none;
+}
+
+@keyframes announcement-ticker-scroll{
+  from{
+    transform:translateX(0);
+  }
+  to{
+    transform:translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .announcement-ticker__track{
+    animation:none;
+    transform:none;
+    overflow-x:auto;
+    width:100%;
+    min-width:0;
+  }
+}
+
 /* ====== Hero ====== */
 .hero{
   position:relative;
@@ -158,7 +277,7 @@
   display:grid;
   gap:18px;
   padding:18px 32px;
-  grid-template-columns:repeat(4, minmax(0,1fr));
+  grid-template-columns:repeat(3, minmax(0,1fr));
   align-items:center;
 }
 
@@ -326,6 +445,134 @@
   color:#314761;
   font-size:1.05rem;
   line-height:1.65;
+}
+
+/* ====== Homepage announcements ====== */
+.home-announcements{
+  background:#f6f9ff;
+  color:#1f2a3b;
+}
+
+.announcement-layout{
+  display:grid;
+  gap:34px;
+}
+
+.announcement-header{
+  max-width:680px;
+  display:grid;
+  gap:12px;
+}
+
+.announcement-header .eyebrow{
+  color:#1b6ef2;
+}
+
+.announcement-header h2{
+  color:#123163;
+  margin:0;
+}
+
+.announcement-grid{
+  display:grid;
+  grid-template-columns:minmax(0, 1.05fr) minmax(280px, .95fr);
+  gap:24px;
+  align-items:start;
+}
+
+.announcement-feature,
+.announcement-list,
+.announcement-empty-panel{
+  background:#fff;
+  border:1px solid #dce6f6;
+  border-radius:12px;
+  box-shadow:0 18px 42px -34px rgba(10,24,54,.42);
+}
+
+.announcement-feature{
+  padding:30px;
+  display:grid;
+  gap:18px;
+}
+
+.announcement-feature h3{
+  margin:0;
+  color:#123163;
+  font-size:1.55rem;
+  font-family:"Poppins","Inter",sans-serif;
+}
+
+.announcement-feature p{
+  margin:0;
+  color:#47556f;
+  line-height:1.65;
+}
+
+.announcement-meta-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  justify-content:space-between;
+  align-items:center;
+  color:#5b6783;
+  font-size:.85rem;
+  font-weight:700;
+  text-transform:uppercase;
+}
+
+.announcement-meta-row span{
+  color:#1b6ef2;
+}
+
+.announcement-lists{
+  display:grid;
+  gap:18px;
+}
+
+.announcement-list{
+  padding:22px;
+  display:grid;
+  gap:12px;
+}
+
+.announcement-list h3{
+  margin:0;
+  color:#123163;
+  font-size:1.05rem;
+}
+
+.announcement-list-item{
+  display:grid;
+  gap:5px;
+  padding:12px 0;
+  color:#26354f;
+  text-decoration:none;
+  border-top:1px solid #e7eef8;
+}
+
+.announcement-list-item:hover,
+.announcement-list-item:focus-visible{
+  color:#1b6ef2;
+  outline:none;
+}
+
+.announcement-list-item span{
+  font-weight:700;
+}
+
+.announcement-list-item time{
+  color:#6a7894;
+  font-size:.86rem;
+}
+
+.announcement-empty,
+.announcement-empty-panel p{
+  margin:0;
+  color:#6a7894;
+}
+
+.announcement-empty-panel{
+  padding:24px;
 }
 
 /* ====== Photo stories ====== */
@@ -678,6 +925,9 @@
   .hero-inner{
     grid-template-columns:1fr;
   }
+  .announcement-grid{
+    grid-template-columns:1fr;
+  }
   .hero-card{
     max-width:520px;
     justify-self:start;
@@ -725,6 +975,35 @@
 }
 
 @media (max-width: 720px){
+  body.has-announcement-ticker{
+    --site-header-top:42px;
+  }
+  .announcement-ticker{
+    min-height:42px;
+  }
+  .announcement-ticker__label{
+    height:42px;
+    padding:0 12px;
+    font-size:.68rem;
+    letter-spacing:.08em;
+  }
+  .announcement-ticker__track{
+    animation-duration:64s;
+  }
+  .announcement-ticker__group{
+    gap:28px;
+    padding-right:28px;
+  }
+  .announcement-ticker__item{
+    min-height:42px;
+    font-size:.86rem;
+  }
+  .announcement-ticker__item span{
+    max-width:34ch;
+  }
+  .announcement-ticker__item::after{
+    margin-left:18px;
+  }
   .section{
     padding:68px 0;
   }
@@ -1083,14 +1362,29 @@
   box-shadow:0 28px 60px -28px rgba(10,24,54,.48);
 }
 
-.insight-card .avatar {
+.insight-card .member-photo {
   width: 80px;
   height: 80px;
   border-radius: 50%;
   object-fit: cover;
+  display: grid;
+  place-items: center;
   margin-bottom: 12px;
+  margin-left: auto;
+  margin-right: auto;
   border: 2px solid gold;
   box-shadow: 0 0 12px rgba(255,215,0,.3);
+}
+
+.insight-card .member-photo--fallback{
+  background:linear-gradient(135deg, #123163, #1b6ef2);
+  color:#fff;
+  font-size:1.25rem;
+  font-weight:800;
+}
+
+.insight-card--empty{
+  border-color:#dce6f6;
 }
 
 .insight-card h3 {

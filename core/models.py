@@ -272,6 +272,11 @@ class MeetingNote(models.Model):
 class Announcement(models.Model):
     title = models.CharField(max_length=200)
     message = models.TextField()
+    announcement_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text="Optional date used to group homepage announcements.",
+    )
     published_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

@@ -24,9 +24,17 @@
   <main class="profile-wrapper">
     <section class="profile-card">
       <div class="profile-header">
-        <div class="avatar">
-          {{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}
-        </div>
+        {% if request.user.profile_photo %}
+          <img
+            src="{{ request.user.profile_photo.url }}"
+            alt="Photo of {{ request.user.get_full_name|default:request.user.username }}"
+            class="avatar avatar-photo"
+          />
+        {% else %}
+          <div class="avatar">
+            {{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}
+          </div>
+        {% endif %}
         <h2>{{ request.user.first_name|capfirst }} {{ request.user.last_name|capfirst }}</h2>
         <span class="role-badge">{{ request.user.role|capfirst }}</span>
       </div>

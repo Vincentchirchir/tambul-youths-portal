@@ -1,7 +1,43 @@
 {% extends 'core/base.html' %} {% load static %} {% block title %}Home . Tambul
 Hustle Youth Group{% endblock %} {% block extra_css %}
 <link rel="stylesheet" href="{% static 'core/index.css' %}" />
-{% endblock %} {% block content %}
+{% endblock %}
+{% block body_class %}{% if upcoming_announcements %}has-announcement-ticker{% endif %}{% endblock %}
+{% block top_banner %}
+  {% if upcoming_announcements %}
+    <section class="announcement-ticker" aria-label="Upcoming announcements">
+      <div class="announcement-ticker__label">Upcoming</div>
+      <div class="announcement-ticker__viewport">
+        <div class="announcement-ticker__track">
+          <div class="announcement-ticker__group">
+            {% for item in upcoming_announcements %}
+              <a
+                href="{% url 'announcement-detail' item.announcement.pk %}"
+                class="announcement-ticker__item"
+              >
+                <time datetime="{{ item.date|date:'Y-m-d' }}">{{ item.date|date:"M d" }}</time>
+                <span>{{ item.announcement.title }}</span>
+              </a>
+            {% endfor %}
+          </div>
+          <div class="announcement-ticker__group" aria-hidden="true">
+            {% for item in upcoming_announcements %}
+              <a
+                href="{% url 'announcement-detail' item.announcement.pk %}"
+                class="announcement-ticker__item"
+                tabindex="-1"
+              >
+                <time datetime="{{ item.date|date:'Y-m-d' }}">{{ item.date|date:"M d" }}</time>
+                <span>{{ item.announcement.title }}</span>
+              </a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}
+{% block content %}
 <main>
   <section class="hero">
     <div class="hero-art">
@@ -24,22 +60,12 @@ Hustle Youth Group{% endblock %} {% block extra_css %}
     </div>
     <div class="hero-stats">
       <div class="container stat-grid">
-        <div>
-          <strong>21</strong>
-          <span>Active Youth Members</span>
-        </div>
-        <div>
-          <strong>Ksh 150K+</strong>
-          <span>Loan Disbursed Among Members</span>
-        </div>
-        <div>
-          <strong>96%</strong>
-          <span>Loan Repayment Rate</span>
-        </div>
-        <div>
-          <strong>10+</strong>
-          <span>Projects Engaged</span>
-        </div>
+        {% for stat in hero_stats %}
+          <div>
+            <strong>{{ stat.value }}</strong>
+            <span>{{ stat.label }}</span>
+          </div>
+        {% endfor %}
       </div>
     </div>
   </section>
@@ -144,6 +170,75 @@ Hustle Youth Group{% endblock %} {% block extra_css %}
           ensuring clear accountability and confidence among members.
         </p>
       </article>
+    </div>
+  </section>
+
+  <section class="section section--light home-announcements" aria-labelledby="home-announcements-title">
+    <div class="container announcement-layout">
+      <header class="announcement-header">
+        <p class="eyebrow">Group Updates</p>
+        <h2 id="home-announcements-title">Latest Announcements</h2>
+        <p class="section-intro">
+          Current and previous notices are grouped automatically from the announcement date.
+        </p>
+      </header>
+
+      {% if latest_announcement %}
+        <div class="announcement-grid">
+          <article class="announcement-feature">
+            <div class="announcement-meta-row">
+              <span>{{ latest_announcement.label }}</span>
+              <time datetime="{{ latest_announcement.date|date:'Y-m-d' }}">
+                {{ latest_announcement.date|date:"M d, Y" }}
+              </time>
+            </div>
+            <h3>{{ latest_announcement.announcement.title }}</h3>
+            <p>{{ latest_announcement.announcement.message|truncatewords:34 }}</p>
+            <a
+              href="{% url 'announcement-detail' latest_announcement.announcement.pk %}"
+              class="btn btn-primary"
+            >
+              Read Announcement
+            </a>
+          </article>
+
+          <div class="announcement-lists">
+            <section class="announcement-list" aria-labelledby="recent-announcements-title">
+              <h3 id="recent-announcements-title">Recent</h3>
+              {% for item in recent_announcements %}
+                <a
+                  href="{% url 'announcement-detail' item.announcement.pk %}"
+                  class="announcement-list-item"
+                >
+                  <span>{{ item.announcement.title }}</span>
+                  <time datetime="{{ item.date|date:'Y-m-d' }}">{{ item.date|date:"M d, Y" }}</time>
+                </a>
+              {% empty %}
+                <p class="announcement-empty">No other recent announcements.</p>
+              {% endfor %}
+            </section>
+
+            <section class="announcement-list" aria-labelledby="previous-announcements-title">
+              <h3 id="previous-announcements-title">Previous</h3>
+              {% for item in previous_announcements %}
+                <a
+                  href="{% url 'announcement-detail' item.announcement.pk %}"
+                  class="announcement-list-item"
+                >
+                  <span>{{ item.announcement.title }}</span>
+                  <time datetime="{{ item.date|date:'Y-m-d' }}">{{ item.date|date:"M d, Y" }}</time>
+                </a>
+              {% empty %}
+                <p class="announcement-empty">No previous announcements yet.</p>
+              {% endfor %}
+            </section>
+          </div>
+        </div>
+      {% else %}
+        <div class="announcement-empty-panel">
+          <p>No announcements have been posted yet.</p>
+        </div>
+      {% endif %}
     </div>
   </section>
 
@@ -389,33 +484,38 @@ Hustle Youth Group{% endblock %} {% block extra_css %}
       </div>
 
       <div class="insight-grid">
-        <article class="insight-card">
-          <img
-            src="{% static 'images/Chiri.jpg' %}"
-            alt="Photo of Faith Jepchirchir"
-            class="avatar"
-          />
-          <h3>Faith Jepchirchir Cheruiyot</h3>
-          <p class="time">Female Member of the Year</p>
-          <p>
-            Recognized for utilizing Tambul Hustle loan and repaying on time for
-            12 consecutive months.
-          </p>
-        </article>
-
-        <article class="insight-card">
-          <img
-            src="{% static 'images/kibii.jpg' %}"
-            alt="Photo of Mark Kibiwott"
-            class="avatar"
-          />
-          <h3>Mark Kibiwott</h3>
-          <p class="time">Male Member of the Year</p>
-          <p>
-            Celebrated for making the most productive use of Tambul Hustle loans
-            and demonstrating financial discipline.
-          </p>
-        </article>
+        {% for item in outstanding_members %}
+          <article class="insight-card">
+            {% if item.member.profile_photo %}
+              <img
+                src="{{ item.member.profile_photo.url }}"
+                alt="Photo of {{ item.name }}"
+                class="member-photo"
+              />
+            {% else %}
+              <div class="member-photo member-photo--fallback">
+                {{ item.initials }}
+              </div>
+            {% endif %}
+            <h3>{{ item.name }}</h3>
+            <p class="time">Loan Repayment Leader</p>
+            <p>
+              {{ item.repayment_rate_display }} repayment rate with
+              {{ item.total_repaid_display }} repaid.
+            </p>
+            <p>{{ item.summary }}</p>
+          </article>
+        {% empty %}
+          <article class="insight-card insight-card--empty">
+            <div class="member-photo member-photo--fallback">TY</div>
+            <h3>No Leaders Yet</h3>
+            <p class="time">Loan Repayment Leader</p>
+            <p>
+              Members will appear here automatically after approved loans start
+              receiving repayments.
+            </p>
+          </article>
+        {% endfor %}
       </div>
     </div>
   </section>

@@ -126,25 +126,20 @@ WSGI_APPLICATION = 'tambulyouthgroup_portal.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
+DATABASE_URL = (os.environ.get("DATABASE_URL") or "").strip()
 
-if DATABASE_URL:
-    DATABASES = {
-        "default": dj_database_url.config(
-            default=DATABASE_URL,
-            conn_max_age=300,
-            ssl_require=ENVIRONMENT == "production",
-        )
-    }
-elif ENVIRONMENT == "development":
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
-    }
-else:
-    raise RuntimeError("DATABASE_URL environment variable is required in production.")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable is required. SQLite is not used.")
+if DATABASE_URL.lower().startswith("sqlite"):
+    raise RuntimeError("SQLite DATABASE_URL values are not allowed. Use PostgreSQL.")
+
+DATABASES = {
+    "default": dj_database_url.config(
+        default=DATABASE_URL,
+        conn_max_age=300,
+        ssl_require=ENVIRONMENT == "production",
+    )
+}
 
 
 # Password validation

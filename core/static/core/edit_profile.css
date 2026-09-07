@@ -96,6 +96,11 @@ body {
   margin: 0 auto 10px;
 }
 
+.avatar-photo {
+  object-fit: cover;
+  display: block;
+}
+
 .profile-header h2 {
   color: #0d1b3d;
   margin: 5px 0;

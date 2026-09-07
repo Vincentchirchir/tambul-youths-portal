@@ -5,14 +5,14 @@ from .models import User
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     fieldsets = BaseUserAdmin.fieldsets + (
-        ("Additional info", {"fields": ("phone", "national_id")}),
+        ("Additional info", {"fields": ("phone", "national_id", "profile_photo")}),
         ("Membership Details", {"fields": ("membership_number", "role")}),
     )
 
     add_fieldsets = (
         (None, {
             "classes": ("wide",),
-            "fields": ("username", "password1", "password2", "role", "email", "phone", "membership_number", "national_id"),
+            "fields": ("username", "password1", "password2", "role", "email", "phone", "membership_number", "national_id", "profile_photo"),
         }),
     )
 

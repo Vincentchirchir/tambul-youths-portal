@@ -82,6 +82,11 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+.avatar-photo {
+  object-fit: cover;
+  display: block;
+}
+
 .profile-header h2 {
   color: #0d1b3d;
   margin: 10px 0 4px;

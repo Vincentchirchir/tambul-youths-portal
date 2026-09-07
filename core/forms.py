@@ -93,7 +93,7 @@ class LoanApplicationForm(forms.ModelForm):
 class AnnouncementForm(forms.ModelForm):
     class Meta:
         model = Announcement
-        fields = ["title", "message"]
+        fields = ["title", "message", "announcement_date"]
         widgets = {
             "title": forms.TextInput(attrs={
                 "class": "form-control",
@@ -103,6 +103,10 @@ class AnnouncementForm(forms.ModelForm):
                 "class": "form-control",
                 "rows": 4,
                 "placeholder": "Write your announcement..."
+            }),
+            "announcement_date": forms.DateInput(attrs={
+                "class": "form-control",
+                "type": "date",
             }),
         }
 

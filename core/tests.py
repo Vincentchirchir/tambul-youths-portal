@@ -1,6 +1,6 @@
 import shutil
 import tempfile
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -71,6 +71,111 @@ class NotificationLinkNormalizationTests(SimpleTestCase):
 
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("https://tambul.org/member-dashboard", mail.outbox[0].body)
+
+
+class HomepageDynamicContentTests(TestCase):
+    def test_homepage_uses_database_stats_leaders_and_announcement_dates(self):
+        today = timezone.localdate()
+        first_member = User.objects.create_user(
+            username="first_leader",
+            password="pass1234",
+            first_name="Faith",
+            last_name="Leader",
+            role="member",
+        )
+        second_member = User.objects.create_user(
+            username="second_leader",
+            password="pass1234",
+            first_name="Mark",
+            last_name="Leader",
+            role="member",
+        )
+        third_member = User.objects.create_user(
+            username="third_leader",
+            password="pass1234",
+            first_name="Irene",
+            last_name="Leader",
+            role="member",
+        )
+        User.objects.create_user(
+            username="inactive_member",
+            password="pass1234",
+            role="member",
+            is_active=False,
+        )
+        User.objects.create_user(
+            username="site_admin",
+            password="pass1234",
+            role="admin",
+        )
+
+        Loan.objects.create(
+            member=first_member,
+            amount=Decimal("1000.00"),
+            status="approved",
+            total_paid_so_far=Decimal("1100.00"),
+        )
+        Loan.objects.create(
+            member=second_member,
+            amount=Decimal("2000.00"),
+            status="approved",
+            total_paid_so_far=Decimal("2200.00"),
+        )
+        Loan.objects.create(
+            member=third_member,
+            amount=Decimal("1500.00"),
+            status="approved",
+            total_paid_so_far=Decimal("1650.00"),
+        )
+
+        latest = Announcement.objects.create(
+            title="Future group meeting",
+            message="Members will meet soon.",
+            announcement_date=today + timedelta(days=5),
+        )
+        recent = Announcement.objects.create(
+            title="Today member notice",
+            message="A current update for members.",
+            announcement_date=today,
+        )
+        previous = Announcement.objects.create(
+            title="Past member notice",
+            message="An older update for members.",
+            announcement_date=today - timedelta(days=1),
+        )
+
+        response = self.client.get(reverse("index"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context["hero_stats"],
+            [
+                {"value": "3", "label": "Active Youth Members"},
+                {"value": "Ksh 4.5K+", "label": "Loan Disbursed Among Members"},
+                {"value": "100%", "label": "Loan Repayment Rate"},
+            ],
+        )
+        self.assertEqual(
+            [item["member"] for item in response.context["outstanding_members"]],
+            [second_member, third_member, first_member],
+        )
+        self.assertEqual(response.context["latest_announcement"]["announcement"], latest)
+        self.assertEqual(
+            [item["announcement"] for item in response.context["upcoming_announcements"]],
+            [recent, latest],
+        )
+        self.assertEqual(
+            [item["announcement"] for item in response.context["recent_announcements"]],
+            [recent],
+        )
+        self.assertEqual(
+            [item["announcement"] for item in response.context["previous_announcements"]],
+            [previous],
+        )
+        self.assertContains(response, "Future group meeting")
+        self.assertContains(response, "announcement-ticker")
+        self.assertContains(response, "Upcoming")
+        self.assertContains(response, "Loan Repayment Leader")
 
 
 class CommitteeLetterWorkflowTests(TestCase):
@@ -1215,6 +1320,127 @@ class CommitteeDashboardAnalyticsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["top_contributors"], ["approved_member"])
         self.assertEqual(response.context["top_contrib_values"], [1000.0])
+
+    def test_monthly_completion_percentages_are_status_based(self):
+        year = timezone.localdate().year
+        committee = User.objects.create_user(
+            username="analytics_admin",
+            password="pass1234",
+            role="admin",
+        )
+        first_member = User.objects.create_user(
+            username="analytics_member_one",
+            password="pass1234",
+            role="member",
+        )
+        second_member = User.objects.create_user(
+            username="analytics_member_two",
+            password="pass1234",
+            role="member",
+        )
+
+        Contribution.objects.create(
+            member=first_member,
+            amount=Decimal("200.00"),
+            month=date(year, 1, 1),
+            status="fully_paid",
+        )
+        Contribution.objects.create(
+            member=second_member,
+            amount=Decimal("100.00"),
+            month=date(year, 1, 1),
+            status="partially_paid",
+        )
+        Contribution.objects.create(
+            member=first_member,
+            amount=Decimal("200.00"),
+            month=date(year, 2, 1),
+            status="fully_paid",
+        )
+        Contribution.objects.create(
+            member=second_member,
+            amount=Decimal("200.00"),
+            month=date(year, 2, 1),
+            status="fully_paid",
+        )
+
+        january_welfare = Welfare.objects.create(
+            member=first_member,
+            description="January welfare",
+            amount=Decimal("500.00"),
+            status="fully_paid",
+        )
+        unpaid_january_welfare = Welfare.objects.create(
+            member=second_member,
+            description="January welfare balance",
+            amount=Decimal("500.00"),
+            status="late",
+        )
+        february_welfare_one = Welfare.objects.create(
+            member=first_member,
+            description="February welfare",
+            amount=Decimal("500.00"),
+            status="fully_paid",
+        )
+        february_welfare_two = Welfare.objects.create(
+            member=second_member,
+            description="February welfare",
+            amount=Decimal("500.00"),
+            status="fully_paid",
+        )
+        Welfare.objects.filter(pk=january_welfare.pk).update(date_given=date(year, 1, 7))
+        Welfare.objects.filter(pk=unpaid_january_welfare.pk).update(date_given=date(year, 1, 8))
+        Welfare.objects.filter(pk=february_welfare_one.pk).update(date_given=date(year, 2, 7))
+        Welfare.objects.filter(pk=february_welfare_two.pk).update(date_given=date(year, 2, 8))
+
+        january_repaid_loan = Loan.objects.create(
+            member=first_member,
+            amount=Decimal("1000.00"),
+            total_paid_so_far=Decimal("1100.00"),
+            interest=Decimal("0.00"),
+            status="approved",
+        )
+        january_unpaid_loan = Loan.objects.create(
+            member=second_member,
+            amount=Decimal("1000.00"),
+            total_paid_so_far=Decimal("0.00"),
+            interest=Decimal("0.00"),
+            status="approved",
+        )
+        february_repaid_loan = Loan.objects.create(
+            member=second_member,
+            amount=Decimal("1000.00"),
+            total_paid_so_far=Decimal("1100.00"),
+            interest=Decimal("0.00"),
+            status="approved",
+        )
+        Loan.objects.filter(pk=january_repaid_loan.pk).update(
+            due_date=date(year, 1, 31),
+            repayment_status="fully_paid",
+        )
+        Loan.objects.filter(pk=january_unpaid_loan.pk).update(
+            due_date=date(year, 1, 31),
+            repayment_status="not_paid",
+        )
+        Loan.objects.filter(pk=february_repaid_loan.pk).update(
+            due_date=date(year, 2, 28),
+            repayment_status="fully_paid",
+        )
+
+        self.client.force_login(committee)
+        response = self.client.get(reverse("committee-dashboard"), {"year": str(year)})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["monthly_labels"][:2], ["Jan", "Feb"])
+        self.assertEqual(response.context["monthly_fully_paid_counts"][:2], [1, 2])
+        self.assertEqual(response.context["monthly_expected_member_counts"][:2], [2, 2])
+        self.assertEqual(response.context["monthly_completion_values"][:2], [50.0, 100.0])
+        self.assertEqual(response.context["welfare_fully_paid_counts"][:2], [1, 2])
+        self.assertEqual(response.context["welfare_expected_member_counts"][:2], [2, 2])
+        self.assertEqual(response.context["welfare_completion_values"][:2], [50.0, 100.0])
+        self.assertEqual(response.context["loan_due_counts"][:2], [2, 1])
+        self.assertEqual(response.context["loan_fully_paid_due_counts"][:2], [1, 1])
+        self.assertEqual(response.context["loan_repayment_completion_values"][:2], [50.0, 100.0])
 
 
 class NotificationReadAllTests(TestCase):

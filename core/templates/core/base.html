@@ -21,7 +21,8 @@
     <title>{% block title %}Tambul Hustle Youth Group{% endblock %}</title>
     {% block extra_css %}{% endblock %}
   </head>
-  <body>
+  <body class="{% block body_class %}{% endblock %}">
+    {% block top_banner %}{% endblock %}
     <header class="site-header">
       <div class="container nav">
         <a class="brand" href="/">
