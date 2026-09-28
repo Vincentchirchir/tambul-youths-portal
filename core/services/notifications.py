@@ -9,6 +9,7 @@ from django.contrib.auth import get_user_model
 from django.core.mail import EmailMultiAlternatives
 
 from core.models import Notification
+from core.permissions import COMMITTEE_ROLES, is_committee_user
 
 logger = logging.getLogger(__name__)
 
@@ -17,17 +18,19 @@ channel_layer = get_channel_layer()
 LEGACY_SITE_HOSTS = {"tambulyouths.onrender.com"}
 CANONICAL_SITE_BASE_URL = "https://tambul.org"
 
-COMMITTEE_ROLES = {
-    "chairperson",
-    "vice-chairperson",
-    "treasurer",
-    "secretary",
-    "vice-secretary",
-    "welfare",
-    "coordinator",
-    "admin",
-    "committee",
-}
+ALL_NOTIFICATIONS_GROUP = "notifications_all"
+COMMITTEE_NOTIFICATIONS_GROUP = "notifications_committee"
+
+
+def user_notifications_group(user_id: int) -> str:
+    return f"notifications_user_{user_id}"
+
+
+def user_notification_groups(user) -> list[str]:
+    groups = [ALL_NOTIFICATIONS_GROUP, user_notifications_group(user.pk)]
+    if is_committee_user(user):
+        groups.append(COMMITTEE_NOTIFICATIONS_GROUP)
+    return groups
 
 
 def committee_users():
@@ -83,20 +86,40 @@ def _to_absolute_link(link: str | None) -> str:
     return f"{base}{separator}{normalized_link}" if base else normalized_link
 
 
-def broadcast_realtime(title: str, message: str, link: str | None = None) -> None:
+def broadcast_realtime(
+    title: str,
+    message: str,
+    link: str | None = None,
+    *,
+    recipients: Iterable[User] | None = None,
+    group_name: str | None = None,
+) -> None:
     if channel_layer is None:
         return
-    async_to_sync(channel_layer.group_send)(
-        "notifications_group",
-        {
-            "type": "send_notification",
-            "content": {
-                "title": title,
-                "message": message,
-                "link": link,
+
+    if recipients is not None:
+        group_names = {
+            user_notifications_group(recipient.pk)
+            for recipient in recipients
+            if getattr(recipient, "pk", None)
+        }
+    elif group_name:
+        group_names = {group_name}
+    else:
+        group_names = {ALL_NOTIFICATIONS_GROUP}
+
+    for target_group in group_names:
+        async_to_sync(channel_layer.group_send)(
+            target_group,
+            {
+                "type": "send_notification",
+                "content": {
+                    "title": title,
+                    "message": message,
+                    "link": link,
+                },
             },
-        },
-    )
+        )
 
 
 def send_email_notifications(
@@ -198,7 +221,12 @@ def notify_users(
         )
         created += 1
 
-    broadcast_realtime(title=title, message=message, link=normalized_link)
+    broadcast_realtime(
+        title=title,
+        message=message,
+        link=normalized_link,
+        recipients=user_list,
+    )
 
     if send_email:
         send_email_notifications(

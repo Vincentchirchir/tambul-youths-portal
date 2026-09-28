@@ -712,8 +712,23 @@ main {
   gap: 6px;
 }
 
-.action-buttons .btn-small {
+.inline-action-form {
+  display: inline;
+  margin: 0;
+}
+
+.inline-action-form button {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.action-buttons .inline-action-form {
   flex: 1 1 110px;
+}
+
+.action-buttons .btn-small {
+  width: 100%;
   text-align: center;
   white-space: nowrap;
 }

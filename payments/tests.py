@@ -13,7 +13,11 @@ from .models import KcbPaymentNotification, PaymentIntent
 from .services import calculate_monthly_contribution_balance
 
 
-@override_settings(KCB_GROUP_ACCOUNT_NUMBER="1234567890")
+@override_settings(
+    KCB_GROUP_ACCOUNT_NUMBER="1234567890",
+    KCB_CALLBACK_SECRET="",
+    KCB_CALLBACK_ALLOWED_IPS=[],
+)
 class KcbCallbackTests(TestCase):
     def setUp(self):
         self.member = get_user_model().objects.create_user(
@@ -40,11 +44,12 @@ class KcbCallbackTests(TestCase):
             contribution_month=contribution_month,
         )
 
-    def post_json(self, url_name, payload):
+    def post_json(self, url_name, payload, **extra):
         return self.client.post(
             reverse(url_name),
             data=json.dumps(payload),
             content_type="application/json",
+            **extra,
         )
 
     def post_notification(
@@ -52,6 +57,7 @@ class KcbCallbackTests(TestCase):
         transaction_reference,
         customer_reference,
         transaction_amount,
+        **extra,
     ):
         return self.post_json("kcb_bill_notification", {
             "transactionReference": transaction_reference,
@@ -60,7 +66,8 @@ class KcbCallbackTests(TestCase):
             "requestId": f"REQ-{transaction_reference}",
             "customerName": "Jane Member",
             "customerMobileNumber": "254700000000",
-        })
+            "narration": "Payment by Jane Member",
+        }, **extra)
 
     def test_validation_returns_fixed_bill_type_for_fixed_payment(self):
         self.create_intent("MONTHLY001", payment_type="monthly_contribution")
@@ -91,6 +98,32 @@ class KcbCallbackTests(TestCase):
         data = response.json()
         self.assertEqual(data["statusCode"], "0")
         self.assertEqual(data["billType"], "FIXED")
+
+    @override_settings(KCB_CALLBACK_SECRET="expected-secret")
+    def test_validation_rejects_missing_callback_secret_when_configured(self):
+        intent = self.create_intent("MONTHLY006", payment_type="monthly_contribution")
+
+        response = self.post_json("kcb_bill_validation", {
+            "customerReference": "MONTHLY006",
+        })
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["statusCode"], "1")
+        intent.refresh_from_db()
+        self.assertEqual(intent.status, "pending")
+
+    @override_settings(KCB_CALLBACK_SECRET="expected-secret")
+    def test_validation_accepts_matching_callback_secret_when_configured(self):
+        self.create_intent("MONTHLY007", payment_type="monthly_contribution")
+
+        response = self.post_json(
+            "kcb_bill_validation",
+            {"customerReference": "MONTHLY007"},
+            HTTP_X_KCB_CALLBACK_SECRET="expected-secret",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["statusCode"], "0")
 
     def test_validation_returns_partial_bill_type_for_loan_repayment(self):
         self.create_intent(
@@ -290,6 +323,10 @@ class KcbCallbackTests(TestCase):
         )
         self.assertEqual(notification.transaction_amount, Decimal("250.00"))
         self.assertEqual(notification.customer_mobile_number, "254700000000")
+        self.assertEqual(notification.raw_payload["customerMobileNumber"], "[redacted]")
+        self.assertEqual(notification.raw_payload["customerName"], "[redacted]")
+        self.assertEqual(notification.raw_payload["narration"], "[redacted]")
+        self.assertEqual(notification.raw_payload["transactionReference"], "TXN001")
         self.assertTrue(notification.processed)
         self.assertIsNotNone(notification.processed_at)
         loan.refresh_from_db()
@@ -400,4 +437,27 @@ class KcbCallbackTests(TestCase):
                 transaction_reference="TXN004",
             ).count(),
             1,
+        )
+
+    @override_settings(KCB_CALLBACK_ALLOWED_IPS=["203.0.113.5"])
+    def test_notification_rejects_unlisted_source_ip_when_allowlist_configured(self):
+        self.create_intent(
+            "OTHER004",
+            payment_type="other",
+            amount=Decimal("1000.00"),
+        )
+
+        response = self.post_notification(
+            "TXN008",
+            "OTHER004",
+            "100.00",
+            REMOTE_ADDR="203.0.113.9",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["statusCode"], "1")
+        self.assertFalse(
+            KcbPaymentNotification.objects.filter(
+                transaction_reference="TXN008",
+            ).exists()
         )

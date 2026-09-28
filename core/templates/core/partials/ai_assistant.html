@@ -1,0 +1,109 @@
+{% if ai_assistant_enabled %}
+<div
+  class="ai-assistant"
+  data-ai-assistant
+  data-chat-url="{% url 'ai-chat' %}"
+  data-max-input-length="{{ ai_assistant_max_input_length }}"
+>
+  <button
+    type="button"
+    class="ai-assistant__launcher"
+    data-ai-assistant-open
+    aria-haspopup="dialog"
+    aria-expanded="false"
+  >
+    <span class="ai-assistant__launcher-mark" aria-hidden="true">AI</span>
+    <span>Tambul Assistant</span>
+  </button>
+
+  <div
+    class="ai-assistant__backdrop"
+    data-ai-assistant-close
+    hidden
+  ></div>
+
+  <section
+    class="ai-assistant__panel"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="ai-assistant-title"
+    hidden
+    tabindex="-1"
+  >
+    <header class="ai-assistant__header">
+      <div>
+        <h2 id="ai-assistant-title">Tambul Assistant</h2>
+        <p>
+          Ask about Tambul information available to your account.
+        </p>
+      </div>
+      <button
+        type="button"
+        class="ai-assistant__close"
+        data-ai-assistant-close
+        aria-label="Close Tambul Assistant"
+      >
+        &times;
+      </button>
+    </header>
+
+    <div
+      class="ai-assistant__messages"
+      data-ai-messages
+      role="log"
+      aria-live="polite"
+      aria-relevant="additions"
+    >
+      <article class="ai-assistant__message ai-assistant__message--assistant">
+        <span class="ai-assistant__message-label">Tambul Assistant</span>
+        <p class="ai-assistant__message-text">
+          Ask Tambul Assistant about your contributions, loans, meetings, or other information available to your account.
+        </p>
+      </article>
+    </div>
+
+    {% if ai_assistant_prompts %}
+    <div class="ai-assistant__suggestions" aria-label="Suggested questions">
+      {% for prompt in ai_assistant_prompts %}
+      <button type="button" class="ai-assistant__suggestion" data-ai-suggestion>
+        {{ prompt }}
+      </button>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <p class="ai-assistant__notice">
+      Uses AI, is read-only, and only uses information your account may view. Verify important financial details against the portal record.
+    </p>
+
+    <p
+      class="ai-assistant__status"
+      data-ai-status
+      role="status"
+      aria-live="polite"
+    ></p>
+
+    <form class="ai-assistant__form" data-ai-form>
+      {% csrf_token %}
+      <label class="ai-assistant__label" for="ai-assistant-input">
+        Message Tambul Assistant
+      </label>
+      <div class="ai-assistant__composer">
+        <textarea
+          id="ai-assistant-input"
+          class="ai-assistant__input"
+          data-ai-input
+          name="message"
+          rows="2"
+          maxlength="{{ ai_assistant_max_input_length }}"
+          placeholder="Type your question..."
+          autocomplete="off"
+        ></textarea>
+        <button type="submit" class="ai-assistant__send" data-ai-send>
+          Send
+        </button>
+      </div>
+    </form>
+  </section>
+</div>
+{% endif %}

@@ -309,6 +309,53 @@ class Notification(models.Model):
         return f"{self.title} → {self.recipient.email}"
 
 
+class AIAuditLog(models.Model):
+    EVENT_REQUEST = "request"
+    EVENT_TOOL = "tool"
+    EVENT_CHOICES = [
+        (EVENT_REQUEST, "AI request"),
+        (EVENT_TOOL, "AI tool invocation"),
+    ]
+
+    request_id = models.UUIDField(db_index=True)
+    event_type = models.CharField(
+        max_length=20,
+        choices=EVENT_CHOICES,
+        default=EVENT_REQUEST,
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ai_audit_logs",
+    )
+    user_role = models.CharField(max_length=32, blank=True)
+    tool_name = models.CharField(max_length=128, blank=True)
+    sensitivity = models.CharField(max_length=32, blank=True)
+    authorization_result = models.CharField(max_length=32, blank=True)
+    success = models.BooleanField(default=False)
+    error_category = models.CharField(max_length=64, blank=True)
+    provider_response_id = models.CharField(max_length=128, blank=True)
+    input_tokens = models.PositiveIntegerField(null=True, blank=True)
+    output_tokens = models.PositiveIntegerField(null=True, blank=True)
+    total_tokens = models.PositiveIntegerField(null=True, blank=True)
+    duration_ms = models.PositiveIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["request_id", "event_type"]),
+            models.Index(fields=["user", "created_at"]),
+            models.Index(fields=["tool_name", "created_at"]),
+        ]
+
+    def __str__(self):
+        target = self.tool_name or self.event_type
+        return f"{self.request_id} - {target}"
+
+
 class LoanReminderLog(models.Model):
     REMINDER_DUE_SOON = "due_soon"
     REMINDER_OVERDUE = "overdue"

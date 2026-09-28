@@ -57,6 +57,7 @@ from .services.loan_limits import (
     loan_limit_remaining,
     loan_amount_exceeds_message,
 )
+from .services.ai.ui import ai_assistant_ui_context
 from .services.committee_letters import (
     committee_letter_pdf_filename,
     generate_committee_letter_pdf,
@@ -78,35 +79,25 @@ from .services.committee_letter_workflow import (
     submit_letter,
 )
 from .models import LetterAuditAction
+from .permissions import (
+    COMMITTEE_ROLES,
+    LETTER_APPROVER_ROLES,
+    LETTER_ISSUER_ROLES,
+    LETTER_REVIEW_ROLES,
+    can_access_committee_dashboard,
+    can_create_announcements,
+    can_export_contributions_csv,
+    can_export_contributions_pdf,
+    can_export_loans,
+    can_export_welfare,
+    can_post_meeting_notes,
+    can_update_contributions,
+    can_update_loan_approval,
+    can_update_loan_repayments,
+    can_update_welfare,
+    can_view_meeting_note,
+)
 from django.templatetags.static import static
-
-COMMITTEE_ROLES = {
-    "chairperson",
-    "vice-chairperson",
-    "treasurer",
-    "secretary",
-    "vice-secretary",
-    "welfare",
-    "coordinator",
-    "admin",
-    "committee",
-}
-
-LETTER_REVIEW_ROLES = {
-    "chairperson",
-    "vice-chairperson",
-    "secretary",
-    "vice-secretary",
-    "admin",
-}
-
-LETTER_APPROVER_ROLES = {
-    "chairperson",
-}
-
-LETTER_ISSUER_ROLES = {
-    "chairperson",
-}
 
 
 def dashboard_year_options():
@@ -619,6 +610,7 @@ class MemberDashboardView(LoginRequiredMixin, TemplateView):
 
 
         ctx.update(dashboard_period_context(year, month, available_years))
+        ctx.update(ai_assistant_ui_context(user))
         return ctx
 
 class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
@@ -626,7 +618,7 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
 
     #  Access Control 
     def test_func(self):
-        return self.request.user.role in COMMITTEE_ROLES
+        return can_access_committee_dashboard(self.request.user)
 
     # Context Data
     def get_context_data(self, **kwargs):
@@ -1057,6 +1049,7 @@ class CommitteeDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         ctx["letter_type_choices"] = CommitteeLetter.LETTER_TYPE_CHOICES
         ctx["letter_status_choices"] = CommitteeLetter.STATUS_CHOICES
         ctx["letter_recipient_type_choices"] = CommitteeLetter.RECIPIENT_TYPE_CHOICES
+        ctx.update(ai_assistant_ui_context(user))
 
         # Top 5 members by approved loan amount this year
         top_borrowers = (
@@ -1560,9 +1553,7 @@ class LetterVerifyResultView(TemplateView):
 
 class ExportContributionsCSV(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     def test_func(self):
-        return self.request.user.role in [
-            "chairperson", "treasurer", "secretary", "admin", "committee"
-        ]
+        return can_export_contributions_csv(self.request.user)
 
     def get(self, request, *args, **kwargs):
         response = HttpResponse(content_type="text/csv")
@@ -1581,9 +1572,7 @@ class ExportContributionsCSV(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
     
 class ExportContributionsPDF(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     def test_func(self):
-        return self.request.user.role in [
-            "chairperson", "treasurer", "admin", "committee"
-        ]
+        return can_export_contributions_pdf(self.request.user)
 
     def get(self, request, *args, **kwargs):
         response = HttpResponse(content_type="application/pdf")
@@ -1637,9 +1626,7 @@ class ExportContributionsPDF(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
 
 class ExportWelfareCSV(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     def test_func(self):
-        return self.request.user.role in [
-            "chairperson", "welfare", "treasurer", "admin", "committee"
-        ]
+        return can_export_welfare(self.request.user)
 
     def get(self, request, *args, **kwargs):
         response = HttpResponse(content_type="text/csv")
@@ -1659,9 +1646,7 @@ class ExportWelfareCSV(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
 class ExportWelfarePDF(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     def test_func(self):
-        return self.request.user.role in [
-            "chairperson", "welfare", "treasurer", "admin", "committee"
-        ]
+        return can_export_welfare(self.request.user)
 
     def get(self, request, *args, **kwargs):
         response = HttpResponse(content_type="application/pdf")
@@ -1718,9 +1703,7 @@ class ExportWelfarePDF(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
 class ExportLoansCSV(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     def test_func(self):
-        return self.request.user.role in [
-            "chairperson", "treasurer", "secretary", "admin", "committee"
-        ]
+        return can_export_loans(self.request.user)
 
     def get(self, request, *args, **kwargs):
         response = HttpResponse(content_type="text/csv")
@@ -1755,9 +1738,7 @@ class ExportLoansCSV(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
 class ExportLoansPDF(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     def test_func(self):
-        return self.request.user.role in [
-            "chairperson", "treasurer", "secretary", "admin", "committee"
-        ]
+        return can_export_loans(self.request.user)
 
     def get(self, request, *args, **kwargs):
         response = HttpResponse(content_type="application/pdf")
@@ -1821,9 +1802,9 @@ class ExportLoansPDF(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         return response
 
 class LoanRepaymentUpdateView(LoginRequiredMixin, View):
-    def get(self, request, pk, status):
+    def post(self, request, pk, status):
         # Restrict to chairperson only
-        if request.user.role != "chairperson":
+        if not can_update_loan_repayments(request.user):
             return HttpResponseForbidden("You are not authorized to update loan repayments.")
 
         loan = get_object_or_404(Loan, pk=pk)
@@ -1849,7 +1830,7 @@ class LoanRepaymentUpdateView(LoginRequiredMixin, View):
 
 class LoanTotalPaidUpdateView(LoginRequiredMixin, View):
     def post(self, request, pk):
-        if request.user.role != "chairperson":
+        if not can_update_loan_repayments(request.user):
             return HttpResponseForbidden("You are not authorized to update loan repayments.")
 
         loan = get_object_or_404(Loan, pk=pk)
@@ -1894,9 +1875,9 @@ class LoanTotalPaidUpdateView(LoginRequiredMixin, View):
         return redirect("committee-dashboard")
 
 class ContributionStatusUpdateView(LoginRequiredMixin, View):
-    def get(self, request, pk, status):
+    def post(self, request, pk, status):
         # Restrict to Treasurer only
-        if request.user.role != "treasurer":
+        if not can_update_contributions(request.user):
             return HttpResponseForbidden("You are not authorized to update contributions.")
 
         contribution = get_object_or_404(Contribution, pk=pk)
@@ -1927,7 +1908,7 @@ class ContributionStatusUpdateView(LoginRequiredMixin, View):
 
 class ContributionAmountUpdateView(LoginRequiredMixin, View):
     def post(self, request, pk):
-        if request.user.role != "treasurer":
+        if not can_update_contributions(request.user):
             return HttpResponseForbidden("You are not authorized to update contributions.")
 
         contribution = get_object_or_404(Contribution, pk=pk)
@@ -1970,7 +1951,7 @@ class ContributionAmountUpdateView(LoginRequiredMixin, View):
 
 class WelfareAmountUpdateView(LoginRequiredMixin, View):
     def post(self, request, pk):
-        if request.user.role != "welfare":
+        if not can_update_welfare(request.user):
             return HttpResponseForbidden("You are not authorized to update welfare records.")
 
         welfare = get_object_or_404(Welfare, pk=pk)
@@ -2000,9 +1981,9 @@ class WelfareAmountUpdateView(LoginRequiredMixin, View):
         return redirect("committee-dashboard")
 
 class WelfareStatusUpdateView(LoginRequiredMixin, View):
-    def get(self, request, pk, status):
+    def post(self, request, pk, status):
         # Restrict only to Welfare
-        if request.user.role != "welfare":
+        if not can_update_welfare(request.user):
             return HttpResponseForbidden("You are not authorized to update welfare records.")
 
         welfare = get_object_or_404(Welfare, pk=pk)
@@ -2103,8 +2084,8 @@ class LoanApplicationView(LoginRequiredMixin, CreateView):
 
 
 class LoanApprovalUpdateView(LoginRequiredMixin, View):
-    def get(self, request, pk, status):
-        if request.user.role != "chairperson":
+    def post(self, request, pk, status):
+        if not can_update_loan_approval(request.user):
             return HttpResponseForbidden("You are not authorized to update loan approval status.")
 
         loan = get_object_or_404(Loan, pk=pk)
@@ -2142,7 +2123,7 @@ class AnnouncementCreateView(LoginRequiredMixin, CreateView):
     success_url = reverse_lazy("committee-dashboard")
 
     def dispatch(self, request, *args, **kwargs):
-        if request.user.role != "coordinator":
+        if not can_create_announcements(request.user):
             messages.error(request, "Only the Coordinator can create announcements.")
             return redirect("committee-dashboard")
         return super().dispatch(request, *args, **kwargs)
@@ -2160,7 +2141,7 @@ class PostMeetingNoteView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
     # only secretary can post
     def test_func(self):
-        return self.request.user.role == "secretary"
+        return can_post_meeting_notes(self.request.user)
 
     def form_valid(self, form):
         form.instance.posted_by = self.request.user
@@ -2177,7 +2158,7 @@ class PostAnnouncementView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     success_url = reverse_lazy("committee-dashboard")
 
     def test_func(self):
-        return self.request.user.role == "coordinator"
+        return can_create_announcements(self.request.user)
 
     def form_valid(self, form):
         form.instance.published_at = timezone.now()
@@ -2291,10 +2272,7 @@ class AnnouncementDetailView(DetailView):
 class MeetingMinutesDetailView(LoginRequiredMixin, View):
     def get(self, request, pk):
         note = get_object_or_404(MeetingNote, pk=pk)
-        if (
-            note.audience == MeetingNote.AUDIENCE_COMMITTEE
-            and request.user.role not in COMMITTEE_ROLES
-        ):
+        if not can_view_meeting_note(request.user, note):
             return HttpResponseForbidden("You do not have permission to view this meeting note.")
 
         dashboard_url = (

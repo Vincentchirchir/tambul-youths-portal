@@ -1,46 +1,21 @@
-from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 
 from core.models import CommitteeLetter, CommitteeLetterAudit, LetterAuditAction
+from core.permissions import (
+    LETTER_APPROVER_ROLES as APPROVER_ROLES,
+    LETTER_ISSUER_ROLES as ISSUER_ROLES,
+    LETTER_REVIEW_ROLES as REVIEW_ROLES,
+    ensure_allowed,
+    is_committee_user,
+)
 from core.services.notifications import notify_users, send_email_to_addresses
 
 
-COMMITTEE_ROLES = {
-    "chairperson",
-    "vice-chairperson",
-    "treasurer",
-    "secretary",
-    "vice-secretary",
-    "welfare",
-    "coordinator",
-    "admin",
-    "committee",
-}
-
-REVIEW_ROLES = {
-    "chairperson",
-    "vice-chairperson",
-    "secretary",
-    "vice-secretary",
-    "admin",
-}
-
-APPROVER_ROLES = {
-    "chairperson",
-}
-
-ISSUER_ROLES = {
-    "chairperson",
-}
-
 LETTER_SUBMISSION_EMAIL = "tambulhustleyouthgroup@gmail.com"
-
-
-def is_committee_user(user):
-    return user.is_authenticated and getattr(user, "role", "") in COMMITTEE_ROLES
 
 
 def can_edit_letter(user, letter):
@@ -62,11 +37,6 @@ def can_approve_letters(user):
 
 def can_issue_letters(user):
     return getattr(user, "role", "") in ISSUER_ROLES
-
-
-def ensure_allowed(allowed, message="You are not authorized to perform this action."):
-    if not allowed:
-        raise PermissionDenied(message)
 
 
 def record_audit(letter, actor, action, status_from="", status_to="", comment=""):

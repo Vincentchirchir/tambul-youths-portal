@@ -5,6 +5,28 @@ class Command(BaseCommand):
     help="Attach built-in and custom permissions to THYG groups"
 
     GROUP_PERMS={
+        "Admin":{
+            "core.view_contribution",
+            "core.add_contribution",
+            "core.change_contribution",
+            "core.delete_contribution",
+            "core.export_contributions",
+            "core.view_loan",
+            "core.add_loan",
+            "core.change_loan",
+            "core.delete_loan",
+            "core.approve_loan",
+            "core.reject_loan",
+            "core.view_welfare",
+            "core.add_welfare",
+            "core.change_welfare",
+            "core.delete_welfare",
+            "core.view_meetingnote",
+            "core.add_meetingnote",
+            "core.change_meetingnote",
+            "core.delete_meetingnote",
+            "core.make_announcement",
+        },
         "Chairperson":{
             "core.view_contribution",
             "core.add_contribution",
@@ -47,12 +69,16 @@ class Command(BaseCommand):
         "Secretary":{
             "core.view_contribution",
             "core.view_loan",
-            "core.make_notes",
+            "core.view_meetingnote",
+            "core.add_meetingnote",
+            "core.change_meetingnote",
         },
         "Vice-Secretary":{
             "core.view_contribution",
             "core.view_loan",
-            "core.make_notes",
+            "core.view_meetingnote",
+            "core.add_meetingnote",
+            "core.change_meetingnote",
         },
         "Coordinator":{
             "core.view_contribution",

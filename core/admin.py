@@ -1,5 +1,6 @@
 from django.contrib import admin
 from .models import (
+    AIAuditLog,
     CommitteeLetter,
     CommitteeLetterAudit,
     Contribution,
@@ -60,6 +61,65 @@ class LoanReminderLogAdmin(admin.ModelAdmin):
     list_filter = ("reminder_type", "reminder_date", "created_at")
     search_fields = ("loan__member__email", "loan__member__username")
     ordering = ("-created_at",)
+
+
+@admin.register(AIAuditLog)
+class AIAuditLogAdmin(admin.ModelAdmin):
+    list_display = (
+        "created_at",
+        "request_id",
+        "event_type",
+        "user",
+        "user_role",
+        "tool_name",
+        "sensitivity",
+        "authorization_result",
+        "success",
+        "error_category",
+        "total_tokens",
+        "duration_ms",
+    )
+    list_filter = (
+        "event_type",
+        "user_role",
+        "sensitivity",
+        "authorization_result",
+        "success",
+        "error_category",
+        "created_at",
+    )
+    search_fields = (
+        "request_id",
+        "user__username",
+        "user__email",
+        "user__first_name",
+        "user__last_name",
+        "tool_name",
+        "provider_response_id",
+    )
+    readonly_fields = (
+        "request_id",
+        "event_type",
+        "user",
+        "user_role",
+        "tool_name",
+        "sensitivity",
+        "authorization_result",
+        "success",
+        "error_category",
+        "provider_response_id",
+        "input_tokens",
+        "output_tokens",
+        "total_tokens",
+        "duration_ms",
+        "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(LetterTemplate)

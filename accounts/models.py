@@ -1,21 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser, Group
+from core.permissions import ROLE_CHOICES, group_name_for_role
 
 class User(AbstractUser):
-    ROLE_CHOICES =[
-        ('admin', 'Admin'),
-        ('chairperson', 'Chairperson'),
-        ('vice-chairperson', 'Vice-Chairperson'),
-        ('committee', 'Committee'),
-        ('treasurer', 'Treasurer'),
-        ('secretary', 'Secretary'),
-        ('vice-secretary', 'Vice-Secretary'),
-        ('coordinator', 'Coordinator'),
-        ('welfare', 'Welfare'),
-        ('member', 'Member'),
-        
-
-    ]
+    ROLE_CHOICES = ROLE_CHOICES
 
     email=models.EmailField(blank=True, null=True, unique=False)
     role=models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
@@ -36,8 +24,11 @@ class User(AbstractUser):
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
+        group_name = group_name_for_role(self.role)
+        if not group_name:
+            return
         try:
-            group=Group.objects.get(name__iexact=self.role.capitalize())
+            group=Group.objects.get(name=group_name)
             self.groups.clear()
             self.groups.add(group)
         except Group.DoesNotExist:

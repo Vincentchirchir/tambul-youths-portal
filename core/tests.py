@@ -4,10 +4,11 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.contrib.auth.models import AnonymousUser, Group
 from django.core import mail
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.files.base import ContentFile
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -25,12 +26,33 @@ from core.models import (
 )
 from core.models import LetterAuditAction
 from core.services.notifications import (
+    ALL_NOTIFICATIONS_GROUP,
+    COMMITTEE_NOTIFICATIONS_GROUP,
     _to_absolute_link,
+    broadcast_realtime,
     normalize_notification_link,
+    notify_users,
     send_email_notifications,
+    user_notification_groups,
+    user_notifications_group,
 )
 from core.services.committee_letters import committee_letter_recipient_lines
 from core.services.loan_limits import loan_limit_remaining
+from core.services.ai_audit import (
+    PROPOSED_AI_AUDIT_MODEL_FIELDS,
+    build_ai_tool_audit_event,
+)
+from core.services.read_only import (
+    get_financial_summary,
+    get_meeting_minutes,
+    get_member_financial_summary,
+    get_monthly_contribution_summary,
+    get_loan_summary,
+    get_my_contribution_status,
+    get_my_loan_summary,
+    get_outstanding_contributions,
+    get_welfare_summary,
+)
 
 
 class NotificationLinkNormalizationTests(SimpleTestCase):
@@ -71,6 +93,298 @@ class NotificationLinkNormalizationTests(SimpleTestCase):
 
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("https://tambul.org/member-dashboard", mail.outbox[0].body)
+
+
+class RecordingChannelLayer:
+    def __init__(self):
+        self.sent = []
+
+    async def group_send(self, group_name, message):
+        self.sent.append((group_name, message))
+
+
+class NotificationRealtimePrivacyTests(TestCase):
+    def test_notify_users_targets_only_recipient_realtime_groups(self):
+        member = User.objects.create_user(
+            username="realtime_member",
+            password="pass1234",
+            role="member",
+        )
+        other_member = User.objects.create_user(
+            username="other_realtime_member",
+            password="pass1234",
+            role="member",
+        )
+        channel_layer = RecordingChannelLayer()
+
+        with patch("core.services.notifications.channel_layer", channel_layer):
+            notify_users(
+                recipients=[member],
+                title="Private update",
+                message="This should only reach one user.",
+                link="/member-dashboard",
+                send_email=False,
+            )
+
+        self.assertEqual(
+            [group_name for group_name, _message in channel_layer.sent],
+            [user_notifications_group(member.pk)],
+        )
+        self.assertNotIn(
+            user_notifications_group(other_member.pk),
+            [group_name for group_name, _message in channel_layer.sent],
+        )
+
+    def test_user_notification_groups_are_server_derived_from_authenticated_user(self):
+        member = User.objects.create_user(
+            username="plain_realtime_member",
+            password="pass1234",
+            role="member",
+        )
+        committee = User.objects.create_user(
+            username="committee_realtime_member",
+            password="pass1234",
+            role="committee",
+        )
+
+        member_groups = user_notification_groups(member)
+        committee_groups = user_notification_groups(committee)
+
+        self.assertIn(ALL_NOTIFICATIONS_GROUP, member_groups)
+        self.assertIn(user_notifications_group(member.pk), member_groups)
+        self.assertNotIn(COMMITTEE_NOTIFICATIONS_GROUP, member_groups)
+        self.assertIn(COMMITTEE_NOTIFICATIONS_GROUP, committee_groups)
+
+    def test_explicit_group_broadcast_preserves_group_wide_notifications(self):
+        channel_layer = RecordingChannelLayer()
+
+        with patch("core.services.notifications.channel_layer", channel_layer):
+            broadcast_realtime("Group notice", "Visible to all logged-in users.")
+
+        self.assertEqual(
+            [group_name for group_name, _message in channel_layer.sent],
+            [ALL_NOTIFICATIONS_GROUP],
+        )
+
+
+class AuthorizationRoleMappingTests(TestCase):
+    def test_hyphenated_roles_sync_to_matching_django_groups(self):
+        vice_chair_group = Group.objects.create(name="Vice-Chairperson")
+        vice_secretary_group = Group.objects.create(name="Vice-Secretary")
+
+        vice_chair = User.objects.create_user(
+            username="vice_chair_role",
+            password="pass1234",
+            role="vice-chairperson",
+        )
+        vice_secretary = User.objects.create_user(
+            username="vice_secretary_role",
+            password="pass1234",
+            role="vice-secretary",
+        )
+
+        self.assertIn(vice_chair_group, vice_chair.groups.all())
+        self.assertIn(vice_secretary_group, vice_secretary.groups.all())
+
+
+class FinancialReadOnlyServiceTests(TestCase):
+    def setUp(self):
+        self.member = User.objects.create_user(
+            username="readonly_member",
+            password="pass1234",
+            first_name="Read",
+            last_name="Only",
+            email="readonly@example.com",
+            phone="0700000000",
+            national_id="12345678",
+            role="member",
+        )
+        self.other_member = User.objects.create_user(
+            username="readonly_other",
+            password="pass1234",
+            first_name="Other",
+            last_name="Member",
+            role="member",
+        )
+        self.treasurer = User.objects.create_user(
+            username="readonly_treasurer",
+            password="pass1234",
+            role="treasurer",
+        )
+        self.chairperson = User.objects.create_user(
+            username="readonly_chairperson",
+            password="pass1234",
+            role="chairperson",
+        )
+        self.committee = User.objects.create_user(
+            username="readonly_committee",
+            password="pass1234",
+            role="committee",
+        )
+        self.contribution = Contribution.objects.create(
+            member=self.member,
+            amount=Decimal("100.00"),
+            month=date(2026, 7, 1),
+            status="partially_paid",
+        )
+        Contribution.objects.create(
+            member=self.other_member,
+            amount=Decimal("250.00"),
+            month=date(2026, 7, 1),
+            status="fully_paid",
+        )
+        self.loan = Loan.objects.create(
+            member=self.member,
+            amount=Decimal("1000.00"),
+            total_paid_so_far=Decimal("200.00"),
+            status="approved",
+            due_date=date(2099, 1, 1),
+        )
+        Loan.objects.filter(pk=self.loan.pk).update(loan_date=date(2026, 7, 6))
+        self.loan.refresh_from_db()
+        self.welfare = Welfare.objects.create(
+            member=self.member,
+            description="Read-only welfare record",
+            amount=Decimal("500.00"),
+            status="fully_paid",
+        )
+        Welfare.objects.filter(pk=self.welfare.pk).update(date_given=date(2026, 7, 5))
+        self.welfare.refresh_from_db()
+        self.all_minutes = MeetingNote.objects.create(
+            title="General minutes",
+            description="Visible to all members.",
+            audience=MeetingNote.AUDIENCE_ALL,
+        )
+        self.committee_minutes = MeetingNote.objects.create(
+            title="Committee minutes",
+            description="Committee-only update.",
+            audience=MeetingNote.AUDIENCE_COMMITTEE,
+        )
+
+    def test_unauthenticated_user_cannot_access_read_only_financial_services(self):
+        with self.assertRaises(PermissionDenied):
+            get_my_contribution_status(AnonymousUser())
+
+    def test_member_can_retrieve_own_contribution_and_loan_status(self):
+        contribution_status = get_my_contribution_status(
+            self.member,
+            year=2026,
+            month=7,
+        )
+        loan_summary = get_my_loan_summary(self.member)
+
+        self.assertEqual(contribution_status["member_id"], self.member.id)
+        self.assertEqual(contribution_status["records"][0]["id"], self.contribution.id)
+        self.assertEqual(contribution_status["balance_due"], "150.00")
+        self.assertEqual(loan_summary["active_loan_count"], 1)
+        self.assertEqual(loan_summary["loans"][0]["id"], self.loan.id)
+
+    def test_member_cannot_retrieve_another_members_financial_summary(self):
+        with self.assertRaises(PermissionDenied):
+            get_member_financial_summary(self.member, self.other_member)
+
+    def test_authorized_roles_can_retrieve_member_and_group_financial_summaries(self):
+        member_summary = get_member_financial_summary(
+            self.treasurer,
+            self.member,
+            year=2026,
+            month=7,
+        )
+        contribution_summary = get_monthly_contribution_summary(
+            self.chairperson,
+            2026,
+            7,
+        )
+        loan_summary = get_loan_summary(self.committee, year=2026, month=7)
+        welfare_summary = get_welfare_summary(self.treasurer, year=2026)
+        financial_summary = get_financial_summary(self.chairperson, year=2026, month=7)
+
+        self.assertEqual(member_summary["member"]["id"], self.member.id)
+        self.assertEqual(contribution_summary["total_collected"], "350.00")
+        self.assertEqual(loan_summary["loan_count"], 1)
+        self.assertEqual(welfare_summary["record_count"], 1)
+        self.assertEqual(financial_summary["contributions"]["total_paid"], "350.00")
+
+    def test_unauthorized_member_cannot_access_committee_financial_summaries(self):
+        with self.assertRaises(PermissionDenied):
+            get_monthly_contribution_summary(self.member, 2026, 7)
+        with self.assertRaises(PermissionDenied):
+            get_outstanding_contributions(self.member, 2026, 7)
+        with self.assertRaises(PermissionDenied):
+            get_loan_summary(self.member)
+        with self.assertRaises(PermissionDenied):
+            get_welfare_summary(self.member)
+        with self.assertRaises(PermissionDenied):
+            get_financial_summary(self.member)
+
+    def test_committee_only_minutes_respect_audience_permissions(self):
+        member_minutes = get_meeting_minutes(self.member)
+        committee_minutes = get_meeting_minutes(
+            self.committee,
+            audience=MeetingNote.AUDIENCE_COMMITTEE,
+        )
+
+        with self.assertRaises(PermissionDenied):
+            get_meeting_minutes(self.member, audience=MeetingNote.AUDIENCE_COMMITTEE)
+
+        self.assertEqual([minute["id"] for minute in member_minutes], [self.all_minutes.id])
+        self.assertEqual(
+            [minute["id"] for minute in committee_minutes],
+            [self.committee_minutes.id],
+        )
+
+    def test_outstanding_contributions_omit_sensitive_member_fields(self):
+        outstanding = get_outstanding_contributions(self.treasurer, 2026, 7)
+
+        member_rows = {
+            row["member_id"]: row
+            for row in outstanding["members"]
+        }
+        self.assertIn(self.member.id, member_rows)
+        self.assertNotIn("email", member_rows[self.member.id])
+        self.assertNotIn("phone", member_rows[self.member.id])
+        self.assertNotIn("national_id", member_rows[self.member.id])
+
+    def test_read_only_services_do_not_modify_records(self):
+        before = {
+            "contributions": Contribution.objects.count(),
+            "loans": Loan.objects.count(),
+            "welfare": Welfare.objects.count(),
+            "contribution_status": self.contribution.status,
+            "loan_paid": self.loan.total_paid_so_far,
+            "welfare_status": self.welfare.status,
+        }
+
+        get_my_contribution_status(self.member)
+        get_my_loan_summary(self.member)
+        get_member_financial_summary(self.treasurer, self.member)
+        get_financial_summary(self.chairperson)
+
+        self.contribution.refresh_from_db()
+        self.loan.refresh_from_db()
+        self.welfare.refresh_from_db()
+        self.assertEqual(Contribution.objects.count(), before["contributions"])
+        self.assertEqual(Loan.objects.count(), before["loans"])
+        self.assertEqual(Welfare.objects.count(), before["welfare"])
+        self.assertEqual(self.contribution.status, before["contribution_status"])
+        self.assertEqual(self.loan.total_paid_so_far, before["loan_paid"])
+        self.assertEqual(self.welfare.status, before["welfare_status"])
+
+    def test_ai_audit_event_shape_avoids_response_or_conversation_storage(self):
+        event = build_ai_tool_audit_event(
+            self.treasurer,
+            "get_financial_summary",
+            "allowed",
+            sensitive_data_accessed=True,
+            success=True,
+        ).to_dict()
+
+        self.assertEqual(event["user_id"], self.treasurer.id)
+        self.assertEqual(event["user_role"], "treasurer")
+        self.assertEqual(event["tool_name"], "get_financial_summary")
+        self.assertIn("created_at", PROPOSED_AI_AUDIT_MODEL_FIELDS)
+        self.assertNotIn("conversation", PROPOSED_AI_AUDIT_MODEL_FIELDS)
+        self.assertNotIn("raw_response", PROPOSED_AI_AUDIT_MODEL_FIELDS)
 
 
 class HomepageDynamicContentTests(TestCase):
@@ -151,8 +465,8 @@ class HomepageDynamicContentTests(TestCase):
             response.context["hero_stats"],
             [
                 {"value": "3", "label": "Active Youth Members"},
-                {"value": "Ksh 4.5K+", "label": "Total Loans Disbursed"},
-                {"value": "100%", "label": "Overall Loan Repayment Rate"},
+                {"value": "Ksh 4.5K+", "label": "Loans Disbursed"},
+                {"value": "100%", "label": "Loan Repayment Rate"},
             ],
         )
         self.assertEqual(
@@ -809,6 +1123,172 @@ class ContributionAmountUpdateTests(TestCase):
         response = self.client.post(self.url, {"amount": "0"})
 
         self.assertRedirects(response, reverse("committee-dashboard"))
+        self.contribution.refresh_from_db()
+        self.assertEqual(self.contribution.status, "not_paid")
+
+
+class FinancialMutationPostOnlyTests(TestCase):
+    def setUp(self):
+        self.member = User.objects.create_user(
+            username="mutation_member",
+            password="pass1234",
+            role="member",
+        )
+        self.treasurer = User.objects.create_user(
+            username="mutation_treasurer",
+            password="pass1234",
+            role="treasurer",
+        )
+        self.chairperson = User.objects.create_user(
+            username="mutation_chairperson",
+            password="pass1234",
+            role="chairperson",
+        )
+        self.welfare_user = User.objects.create_user(
+            username="mutation_welfare",
+            password="pass1234",
+            role="welfare",
+        )
+        self.contribution = Contribution.objects.create(
+            member=self.member,
+            amount=Decimal("0.00"),
+            month=date(2027, 1, 1),
+            status="not_paid",
+        )
+        self.loan = Loan.objects.create(
+            member=self.member,
+            amount=Decimal("1000.00"),
+            total_paid_so_far=Decimal("0.00"),
+            status="pending",
+            due_date=date(2099, 1, 1),
+        )
+        self.welfare = Welfare.objects.create(
+            member=self.member,
+            description="Mutation test welfare",
+            amount=Decimal("500.00"),
+            status="fully_paid",
+        )
+        Welfare.objects.filter(pk=self.welfare.pk).update(
+            date_given=date(2027, 1, 1),
+            status="not_paid",
+        )
+        self.welfare.refresh_from_db()
+
+    def test_get_requests_cannot_modify_financial_status_records(self):
+        self.client.force_login(self.treasurer)
+        response = self.client.get(
+            reverse("mark-contrib-status", args=[self.contribution.pk, "fully_paid"])
+        )
+        self.assertEqual(response.status_code, 405)
+        self.contribution.refresh_from_db()
+        self.assertEqual(self.contribution.status, "not_paid")
+
+        self.client.force_login(self.chairperson)
+        response = self.client.get(
+            reverse("mark-loan-status", args=[self.loan.pk, "approved"])
+        )
+        self.assertEqual(response.status_code, 405)
+        self.loan.refresh_from_db()
+        self.assertEqual(self.loan.status, "pending")
+
+        response = self.client.get(
+            reverse("mark-loan-paid", args=[self.loan.pk, "fully_paid"])
+        )
+        self.assertEqual(response.status_code, 405)
+        self.loan.refresh_from_db()
+        self.assertEqual(self.loan.repayment_status, "not_paid")
+
+        self.client.force_login(self.welfare_user)
+        response = self.client.get(
+            reverse("mark-welfare-status", args=[self.welfare.pk, "fully_paid"])
+        )
+        self.assertEqual(response.status_code, 405)
+        self.welfare.refresh_from_db()
+        self.assertEqual(self.welfare.status, "not_paid")
+
+    def test_post_requests_update_financial_records_for_authorized_roles(self):
+        self.client.force_login(self.treasurer)
+        response = self.client.post(
+            reverse("mark-contrib-status", args=[self.contribution.pk, "fully_paid"])
+        )
+        self.assertRedirects(
+            response,
+            reverse("committee-dashboard"),
+            fetch_redirect_response=False,
+        )
+        self.contribution.refresh_from_db()
+        self.assertEqual(self.contribution.status, "fully_paid")
+
+        self.client.force_login(self.chairperson)
+        response = self.client.post(
+            reverse("mark-loan-status", args=[self.loan.pk, "approved"])
+        )
+        self.assertRedirects(
+            response,
+            reverse("committee-dashboard"),
+            fetch_redirect_response=False,
+        )
+        self.loan.refresh_from_db()
+        self.assertEqual(self.loan.status, "approved")
+
+        response = self.client.post(
+            reverse("update-loan-total-paid", args=[self.loan.pk]),
+            {"total_paid_so_far": "100.00"},
+        )
+        self.assertRedirects(
+            response,
+            reverse("committee-dashboard"),
+            fetch_redirect_response=False,
+        )
+        self.loan.refresh_from_db()
+        self.assertEqual(self.loan.total_paid_so_far, Decimal("100.00"))
+
+        self.client.force_login(self.welfare_user)
+        response = self.client.post(
+            reverse("mark-welfare-status", args=[self.welfare.pk, "fully_paid"])
+        )
+        self.assertRedirects(
+            response,
+            reverse("committee-dashboard"),
+            fetch_redirect_response=False,
+        )
+        self.welfare.refresh_from_db()
+        self.assertEqual(self.welfare.status, "fully_paid")
+
+    def test_unauthorized_users_cannot_modify_financial_records(self):
+        self.client.force_login(self.member)
+
+        response = self.client.post(
+            reverse("mark-contrib-status", args=[self.contribution.pk, "fully_paid"])
+        )
+        self.assertEqual(response.status_code, 403)
+        self.contribution.refresh_from_db()
+        self.assertEqual(self.contribution.status, "not_paid")
+
+        response = self.client.post(
+            reverse("update-loan-total-paid", args=[self.loan.pk]),
+            {"total_paid_so_far": "100.00"},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.loan.refresh_from_db()
+        self.assertEqual(self.loan.total_paid_so_far, Decimal("0.00"))
+
+        response = self.client.post(
+            reverse("mark-welfare-status", args=[self.welfare.pk, "fully_paid"])
+        )
+        self.assertEqual(response.status_code, 403)
+        self.welfare.refresh_from_db()
+        self.assertEqual(self.welfare.status, "not_paid")
+
+    def test_financial_status_mutations_require_csrf(self):
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.treasurer)
+
+        response = csrf_client.post(
+            reverse("mark-contrib-status", args=[self.contribution.pk, "fully_paid"])
+        )
+
+        self.assertEqual(response.status_code, 403)
         self.contribution.refresh_from_db()
         self.assertEqual(self.contribution.status, "not_paid")
 

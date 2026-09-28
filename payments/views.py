@@ -1,18 +1,22 @@
 import json
 import uuid
 from decimal import Decimal, InvalidOperation
+from ipaddress import ip_address, ip_network
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import redirect
 from django.utils import timezone
+from django.utils.crypto import constant_time_compare
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import DetailView, FormView, ListView
+
+from core.permissions import can_view_payment_intent
 
 from .forms import PaymentIntentForm
 from .models import KcbPaymentNotification, PaymentIntent
@@ -63,6 +67,88 @@ def kcb_validation_error_response(message, status=200):
     )
 
 
+SENSITIVE_KCB_PAYLOAD_KEYS = {
+    "customername",
+    "customermobilenumber",
+    "customermobile",
+    "customerphone",
+    "phone",
+    "mobile",
+    "msisdn",
+    "narration",
+}
+SENSITIVE_KCB_PAYLOAD_PARTS = {
+    "authorization",
+    "credential",
+    "password",
+    "secret",
+    "signature",
+    "token",
+}
+
+
+def _redacted_value(value):
+    if value in (None, ""):
+        return value
+    return "[redacted]"
+
+
+def _is_sensitive_payload_key(key):
+    normalized = str(key).replace("_", "").replace("-", "").lower()
+    return normalized in SENSITIVE_KCB_PAYLOAD_KEYS or any(
+        part in normalized for part in SENSITIVE_KCB_PAYLOAD_PARTS
+    )
+
+
+def redact_kcb_payload(payload):
+    if isinstance(payload, dict):
+        return {
+            key: _redacted_value(value)
+            if _is_sensitive_payload_key(key)
+            else redact_kcb_payload(value)
+            for key, value in payload.items()
+        }
+    if isinstance(payload, list):
+        return [redact_kcb_payload(item) for item in payload]
+    return payload
+
+
+def _callback_client_ip(request):
+    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    if forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip()
+    return request.META.get("REMOTE_ADDR", "")
+
+
+def _client_ip_allowed(client_ip, allowed_entries):
+    if not allowed_entries:
+        return True
+    try:
+        address = ip_address(client_ip)
+    except ValueError:
+        return False
+
+    for entry in allowed_entries:
+        try:
+            if address in ip_network(entry, strict=False):
+                return True
+        except ValueError:
+            if client_ip == entry:
+                return True
+    return False
+
+
+def kcb_callback_is_authorized(request):
+    required_secret = getattr(settings, "KCB_CALLBACK_SECRET", "")
+    if required_secret:
+        provided_secret = request.headers.get("X-KCB-Callback-Secret", "")
+        if not constant_time_compare(provided_secret, required_secret):
+            return False
+
+    allowed_ips = getattr(settings, "KCB_CALLBACK_ALLOWED_IPS", [])
+    return _client_ip_allowed(_callback_client_ip(request), allowed_ips)
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class KcbBillValidationView(View):
     """
@@ -72,6 +158,9 @@ class KcbBillValidationView(View):
     """
 
     def post(self, request, *args, **kwargs):
+        if not kcb_callback_is_authorized(request):
+            return kcb_validation_error_response("Unauthorized callback", status=403)
+
         try:
             payload = json.loads(request.body.decode("utf-8"))
         except json.JSONDecodeError:
@@ -130,6 +219,9 @@ class KcbBillNotificationView(View):
     """
 
     def post(self, request, *args, **kwargs):
+        if not kcb_callback_is_authorized(request):
+            return kcb_error_response("Unauthorized callback", status=403)
+
         try:
             payload = json.loads(request.body.decode("utf-8"))
         except json.JSONDecodeError:
@@ -185,7 +277,7 @@ class KcbBillNotificationView(View):
                     credit_account_identifier=payload.get("creditAccountIdentifier"),
                     organization_short_code=payload.get("organizationShortCode"),
                     till_number=payload.get("tillNumber"),
-                    raw_payload=payload,
+                    raw_payload=redact_kcb_payload(payload),
                 )
 
                 if payment_intent.status != "paid":
@@ -262,16 +354,13 @@ class PaymentInstructionsView(LoginRequiredMixin, DetailView):
     context_object_name = "payment"
 
     def get_queryset(self):
-        user = self.request.user
+        return PaymentIntent.objects.select_related("member")
 
-        if user.is_staff or getattr(user, "role", None) in [
-            "admin",
-            "treasurer",
-            "chairperson",
-        ]:
-            return PaymentIntent.objects.all()
-
-        return PaymentIntent.objects.filter(member=user)
+    def get_object(self, queryset=None):
+        payment_intent = super().get_object(queryset)
+        if not can_view_payment_intent(self.request.user, payment_intent):
+            raise Http404
+        return payment_intent
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

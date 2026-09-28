@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from django.contrib.auth.views import LoginView, LogoutView
 from django.urls import reverse_lazy
+from core.permissions import can_access_committee_dashboard
 
 class UserLoginView(LoginView):
     template_name='accounts/login.html'
@@ -10,11 +11,10 @@ class UserLoginView(LoginView):
         user=self.request.user
         if user.is_superuser or user.email=='tambulhustleyouthgroup@gmailcom':
             return reverse_lazy('admin:index')
-        if user.role in ["chairperson", "treasurer", "secretary", "welfare", "coordinator"]:
+        if can_access_committee_dashboard(user):
             return reverse_lazy('committee-dashboard')
         return reverse_lazy('member-dashboard')
     
 class UserLogoutView(LogoutView):
     next_page=reverse_lazy('index')
-
 

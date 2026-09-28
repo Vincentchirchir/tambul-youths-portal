@@ -15,6 +15,8 @@ import os
 
 import dj_database_url
 
+from core.permissions import COMMITTEE_ROLES
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -30,10 +32,11 @@ environ.Env.read_env(BASE_DIR / ".env")
 # Detect local vs production (set ENVIRONMENT=production on deploy)
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "development")
 
-SECRET_KEY = os.environ.get(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-=pedvou_cmfo*1admr%42iq7b-o9&2%$xi=7v2gw(t7pit&j9u" 
-)
+DJANGO_SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "").strip()
+if ENVIRONMENT == "production" and not DJANGO_SECRET_KEY:
+    raise RuntimeError("DJANGO_SECRET_KEY environment variable is required in production.")
+
+SECRET_KEY = DJANGO_SECRET_KEY or "django-insecure-dev-only-change-me"
 
 
 
@@ -255,11 +258,40 @@ def env_bool(name, default=False):
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def env_list(name):
+    return [
+        item.strip()
+        for item in os.environ.get(name, "").split(",")
+        if item.strip()
+    ]
+
+
+def env_int(name, default):
+    raw_value = os.environ.get(name, str(default)).strip()
+    try:
+        return int(raw_value)
+    except ValueError as exc:
+        raise RuntimeError(f"{name} must be an integer.") from exc
+
+
+def env_float(name, default):
+    raw_value = os.environ.get(name, str(default)).strip()
+    try:
+        return float(raw_value)
+    except ValueError as exc:
+        raise RuntimeError(f"{name} must be a number.") from exc
+
+
 SITE_BASE_URL = os.environ.get(
     "SITE_BASE_URL",
     "http://localhost:8000" if ENVIRONMENT == "development" else "https://tambul.org",
 )
 KCB_GROUP_ACCOUNT_NUMBER = os.environ.get("KCB_GROUP_ACCOUNT_NUMBER", "TEST_GROUP_ACCOUNT")
+if ENVIRONMENT == "production" and KCB_GROUP_ACCOUNT_NUMBER == "TEST_GROUP_ACCOUNT":
+    raise RuntimeError("KCB_GROUP_ACCOUNT_NUMBER environment variable is required in production.")
+
+KCB_CALLBACK_SECRET = os.environ.get("KCB_CALLBACK_SECRET", "").strip()
+KCB_CALLBACK_ALLOWED_IPS = env_list("KCB_CALLBACK_ALLOWED_IPS")
 
 NOTIFICATIONS_SEND_EMAILS = env_bool("NOTIFICATIONS_SEND_EMAILS", default=False)
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@tambulyouths.local")
@@ -274,3 +306,24 @@ EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
 EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", default=True)
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+
+AI_ENABLED = env_bool("AI_ENABLED", default=False)
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "").strip()
+AI_PILOT_ROLES = tuple(
+    role.lower()
+    for role in (
+        env_list("AI_PILOT_ROLES")
+        or sorted(COMMITTEE_ROLES)
+    )
+)
+AI_PILOT_USER_IDS = tuple(env_list("AI_PILOT_USER_IDS"))
+AI_PILOT_USERNAMES = tuple(
+    username.lower() for username in env_list("AI_PILOT_USERNAMES")
+)
+AI_MAX_INPUT_LENGTH = env_int("AI_MAX_INPUT_LENGTH", 1000)
+AI_MAX_OUTPUT_TOKENS = env_int("AI_MAX_OUTPUT_TOKENS", 600)
+AI_MAX_TOOL_CALLS = env_int("AI_MAX_TOOL_CALLS", 3)
+AI_REQUEST_TIMEOUT = env_float("AI_REQUEST_TIMEOUT", 20)
+AI_RATE_LIMIT = env_int("AI_RATE_LIMIT", 10)
+AI_RATE_LIMIT_WINDOW_SECONDS = env_int("AI_RATE_LIMIT_WINDOW_SECONDS", 60)

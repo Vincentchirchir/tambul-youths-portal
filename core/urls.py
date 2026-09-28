@@ -1,11 +1,13 @@
 from django.contrib import admin
 from django.urls import path
+from .ai_views import AIChatView
 from .views import Index, MemberDashboardView, CommitteeDashboardView, CommitteeLetterApproveView, CommitteeLetterCancelView, CommitteeLetterCorrectView, CommitteeLetterCreateView, CommitteeLetterDetailView, CommitteeLetterEditView, CommitteeLetterGeneratePDFView, CommitteeLetterIssueView, CommitteeLetterListView, CommitteeLetterPDFView, CommitteeLetterPreviewView, CommitteeLetterReturnView, CommitteeLetterStatusUpdateView, CommitteeLetterSubmitView, ExportLoansCSV, ExportLoansPDF, ExportContributionsCSV, ExportContributionsPDF, ExportWelfareCSV, ExportWelfarePDF, LetterVerifyResultView, LetterVerifyView, LoanRepaymentUpdateView, LoanTotalPaidUpdateView, ContributionStatusUpdateView, ContributionAmountUpdateView, WelfareAmountUpdateView, WelfareStatusUpdateView, LoanApplicationView, LoanApprovalUpdateView, AnnouncementCreateView, PostMeetingNoteView, PostAnnouncementView, ProfileView, EditProfileView, NotificationListView, MarkNotificationReadView, MarkAllNotificationsReadView, NotificationFetchView, AnnouncementDetailView, MeetingMinutesDetailView, web_manifest, service_worker
 
 
 urlpatterns = [
     path("manifest.webmanifest", web_manifest, name="web-manifest"),
     path("service-worker.js", service_worker, name="service-worker"),
+    path("ai/chat/", AIChatView.as_view(), name="ai-chat"),
     path('', Index.as_view(), name='index'),
     path('member-dashboard', MemberDashboardView.as_view(), name='member-dashboard'),
     path("committee-dashboard/", CommitteeDashboardView.as_view(), name="committee-dashboard"),

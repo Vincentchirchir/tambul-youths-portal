@@ -1,20 +1,11 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import Group
+from core.permissions import ROLE_GROUP_NAMES
 
 class Command(BaseCommand):
     help = "Seed default groups for Tambul Hustle Youth Group Portal"
 
-    GROUPS = [
-        "Chairperson",
-        "Vice-Chairperson",
-        "Committee",
-        "Treasurer",
-        "Secretary",
-        "Vice-Secretary",
-        "Coordinator",
-        "Welfare",
-        "Member",
-    ]
+    GROUPS = list(ROLE_GROUP_NAMES.values())
 
     def handle(self, *args, **options):
         for name in self.GROUPS:

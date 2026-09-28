@@ -28,6 +28,8 @@ tmp/
 # ==========================
 venv/
 env/
+.venv/
+tambulyouthgroup_env/
 */__pycache__/
 */migrations/__pycache__/
 */migrations/*.pyc
@@ -94,7 +96,6 @@ __pycache__/
 # ==========================
 .ipynb_checkpoints
 *.ipynb
-tambulhustleygroup_env/
 *.pyc
 __pycache__/
 
