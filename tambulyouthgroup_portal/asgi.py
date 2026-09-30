@@ -10,18 +10,17 @@ https://docs.djangoproject.com/en/5.2/howto/deployment/asgi/
 import os
 
 from django.core.asgi import get_asgi_application
-from channels.routing import ProtocolTypeRouter, URLRouter
-from channels.auth import AuthMiddlewareStack
-from core import routing as core_routing
-
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tambulyouthgroup_portal.settings')
-
-application = get_asgi_application()
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tambulyouthgroup_portal.settings")
 
+django_asgi_application = get_asgi_application()
+
+from channels.auth import AuthMiddlewareStack
+from channels.routing import ProtocolTypeRouter, URLRouter
+from core import routing as core_routing
+
 application = ProtocolTypeRouter({
-    "http": get_asgi_application(),
+    "http": django_asgi_application,
     "websocket": AuthMiddlewareStack(
         URLRouter(core_routing.websocket_urlpatterns)
     ),
