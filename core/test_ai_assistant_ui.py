@@ -1,3 +1,4 @@
+import re
 from datetime import date
 from decimal import Decimal
 
@@ -7,6 +8,7 @@ from django.urls import reverse
 
 from accounts.models import User
 from core.models import Contribution, Loan, Welfare
+from core.services.ai.prompts import TAMBUL_ASSISTANT_INSTRUCTIONS
 from core.services.ai.ui import ai_assistant_suggested_prompts, ai_assistant_ui_context
 from payments.models import PaymentIntent
 
@@ -135,16 +137,68 @@ class TambulAssistantUITests(TestCase):
         self.assertNotIn("tool_name", source)
         self.assertNotIn("permissions", source)
 
-    def test_assistant_frontend_uses_text_rendering_and_blocks_duplicates(self):
+    def test_assistant_frontend_uses_safe_rendering_and_blocks_duplicates(self):
         source = read_static("core/ai_assistant.js")
 
         self.assertIn("body.textContent = text", source)
         self.assertIn("label.textContent = speaker", source)
+        self.assertIn("renderAssistantMarkdown(body, text)", source)
+        self.assertIn('appendMessage("You", message, "user")', source)
         self.assertNotIn("innerHTML", source)
         self.assertIn("state.isSending", source)
         self.assertIn("sendButton.disabled = isBusy", source)
         self.assertIn("AI_RATE_LIMITED", source)
         self.assertIn("AI_PILOT_ACCESS_DENIED", source)
+
+    def test_assistant_markdown_renderer_uses_only_safe_dom_construction(self):
+        source = read_static("core/ai_assistant.js")
+        renderer_source = source[
+            source.index("const appendInlineMarkdown"):
+            source.index("const appendMessage")
+        ]
+
+        self.assertIn("document.createTextNode", renderer_source)
+        created_tags = set(
+            re.findall(r'document\.createElement\("([a-z]+)"\)', renderer_source)
+        )
+        self.assertEqual(created_tags, {"br", "li", "ol", "p", "strong", "ul"})
+
+        for unsafe_sink in (
+            "innerHTML",
+            "outerHTML",
+            "insertAdjacentHTML",
+            "DOMParser",
+            "createContextualFragment",
+            "document.write",
+        ):
+            self.assertNotIn(unsafe_sink, renderer_source)
+
+    def test_model_xss_payloads_remain_text_and_user_markdown_is_not_enabled(self):
+        source = read_static("core/ai_assistant.js")
+
+        self.assertIn("strong.textContent = match[1]", source)
+        self.assertIn("document.createTextNode(text.slice(cursor, match.index))", source)
+        self.assertIn("document.createTextNode(text.slice(cursor))", source)
+        self.assertNotIn("useMarkdown = true", source)
+        self.assertNotIn('appendMessage("You", message, "user", true)', source)
+
+        attack_payloads = (
+            "<script>alert('xss')</script>",
+            "<img src=x onerror=alert(1)>",
+            '<a href="javascript:alert(1)">click</a>',
+        )
+        for payload in attack_payloads:
+            with self.subTest(payload=payload):
+                self.assertNotIn("innerHTML", source)
+                self.assertNotIn("insertAdjacentHTML", source)
+                self.assertIn("document.createTextNode", source)
+
+    def test_model_instructions_request_supported_markdown_without_html(self):
+        self.assertTrue(TAMBUL_ASSISTANT_INSTRUCTIONS.startswith("Formatting re-enabled"))
+        self.assertIn("Use simple Markdown only for presentation", TAMBUL_ASSISTANT_INSTRUCTIONS)
+        self.assertIn("Use **bold**", TAMBUL_ASSISTANT_INSTRUCTIONS)
+        self.assertIn("Do not output HTML", TAMBUL_ASSISTANT_INSTRUCTIONS)
+        self.assertIn("Do not output HTML, Markdown tables", TAMBUL_ASSISTANT_INSTRUCTIONS)
 
     def test_assistant_template_has_accessible_dialog_controls(self):
         self.client.force_login(self.member)

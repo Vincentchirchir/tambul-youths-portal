@@ -61,7 +61,96 @@
     messages.scrollTop = messages.scrollHeight;
   };
 
-  const appendMessage = (speaker, text, modifier) => {
+  const appendInlineMarkdown = (container, text) => {
+    const boldPattern = /\*\*([^*\n]+)\*\*/g;
+    let cursor = 0;
+    let match = boldPattern.exec(text);
+
+    while (match) {
+      if (match.index > cursor) {
+        container.appendChild(document.createTextNode(text.slice(cursor, match.index)));
+      }
+
+      const strong = document.createElement("strong");
+      strong.textContent = match[1];
+      container.appendChild(strong);
+      cursor = match.index + match[0].length;
+      match = boldPattern.exec(text);
+    }
+
+    if (cursor < text.length) {
+      container.appendChild(document.createTextNode(text.slice(cursor)));
+    }
+  };
+
+  const renderAssistantMarkdown = (container, markdown) => {
+    const lines = String(markdown || "").replace(/\r\n?/g, "\n").split("\n");
+    let paragraphLines = [];
+    let currentList = null;
+    let currentListType = null;
+    let currentListItem = null;
+
+    const appendLine = (parent, line, includeBreak) => {
+      if (includeBreak) parent.appendChild(document.createElement("br"));
+      appendInlineMarkdown(parent, line);
+    };
+
+    const flushParagraph = () => {
+      if (!paragraphLines.length) return;
+
+      const paragraph = document.createElement("p");
+      paragraphLines.forEach((line, index) => {
+        appendLine(paragraph, line, index > 0);
+      });
+      container.appendChild(paragraph);
+      paragraphLines = [];
+    };
+
+    const closeList = () => {
+      currentList = null;
+      currentListType = null;
+      currentListItem = null;
+    };
+
+    lines.forEach((line) => {
+      if (!line.trim()) {
+        flushParagraph();
+        currentListItem = null;
+        return;
+      }
+
+      const listMatch = line.match(/^\s*(-|\d+[.)])\s+(.+)$/);
+      if (listMatch) {
+        flushParagraph();
+        const listType = /^\d/.test(listMatch[1]) ? "ol" : "ul";
+        if (!currentList || currentListType !== listType) {
+          closeList();
+          currentList = listType === "ol"
+            ? document.createElement("ol")
+            : document.createElement("ul");
+          currentListType = listType;
+          container.appendChild(currentList);
+        }
+
+        currentListItem = document.createElement("li");
+        appendInlineMarkdown(currentListItem, listMatch[2].trim());
+        currentList.appendChild(currentListItem);
+        return;
+      }
+
+      if (currentListItem && /^\s{2,}\S/.test(line)) {
+        appendLine(currentListItem, line.trim(), true);
+        return;
+      }
+
+      closeList();
+      paragraphLines.push(line.trim());
+    });
+
+    flushParagraph();
+  };
+
+  const appendMessage = (speaker, text, modifier, useMarkdown = false) => {
     if (!messages) return null;
 
     const item = document.createElement("article");
@@ -71,9 +160,14 @@
     label.className = "ai-assistant__message-label";
     label.textContent = speaker;
 
-    const body = document.createElement("p");
+    const body = document.createElement(useMarkdown ? "div" : "p");
     body.className = "ai-assistant__message-text";
-    body.textContent = text;
+    if (useMarkdown) {
+      body.classList.add("ai-assistant__message-text--formatted");
+      renderAssistantMarkdown(body, text);
+    } else {
+      body.textContent = text;
+    }
 
     item.appendChild(label);
     item.appendChild(body);
@@ -178,6 +272,7 @@
         "Tambul Assistant",
         payload.message || "Tambul Assistant returned an empty response.",
         "assistant",
+        true,
       );
     } catch (_error) {
       removeMessage(loading);
