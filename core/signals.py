@@ -1,6 +1,7 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.urls import reverse
+from django.db import transaction
 
 from .models import Announcement, MeetingNote
 from .services.notifications import (
@@ -24,19 +25,15 @@ def create_announcement_notification(sender, instance, created, **kwargs):
 @receiver(post_save, sender=MeetingNote)
 def create_meeting_notification(sender, instance, created, **kwargs):
     if created:
-        if instance.file:
-            link = instance.file.url
-        else:
-            link = reverse("meeting-minutes-detail", args=[instance.pk])
-
-        recipients = member_users()
-        if instance.audience == MeetingNote.AUDIENCE_COMMITTEE:
-            recipients = committee_users()
-
-        notify_users(
-            recipients=recipients,
-            title="New Meeting Note",
-            message=instance.title,
-            link=link,
-            send_email=True,
-        )
+        def deliver():
+            # Read current audience after commit; never store an expiring storage URL.
+            note = MeetingNote.objects.get(pk=instance.pk)
+            recipients = committee_users() if note.audience == MeetingNote.AUDIENCE_COMMITTEE else member_users()
+            notify_users(
+                recipients=recipients,
+                title="New Meeting Note",
+                message=note.title,
+                link=reverse("meeting-minutes-detail", args=[note.pk]),
+                send_email=True,
+            )
+        transaction.on_commit(deliver, robust=True)

@@ -540,9 +540,9 @@
                   </td>
                   <td>{{ note.created_at|date:"M d, Y" }}</td>
                   <td>
-                    {% if note.file %}
+                    {% if note.minutes_pdf or note.file %}
                     <a
-                      href="{{ note.file.url }}"
+                      href="{% url 'meeting-minutes-download' note.pk %}"
                       target="_blank"
                       class="btn btn-primary btn-sm"
                     >

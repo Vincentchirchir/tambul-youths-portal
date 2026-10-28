@@ -32,6 +32,9 @@ from django.conf import settings
 from accounts.models import User
 from accounts.forms import ProfileForm
 from django.db.models.functions import TruncMonth
+from django.db import transaction
+from .minutes_storage import MinutesStorageUnavailable
+from .minutes_views import minutes_attachment
 import csv
 from django .contrib import messages
 from django.http import FileResponse, HttpResponse, HttpResponseForbidden
@@ -2145,10 +2148,16 @@ class PostMeetingNoteView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.posted_by = self.request.user
-        response = super().form_valid(form)
-        minute = self.object
+        try:
+            with transaction.atomic():
+                response = super().form_valid(form)
+        except MinutesStorageUnavailable:
+            form.add_error("minutes_pdf", "Document storage is temporarily unavailable. Please retry later.")
+            response = self.form_invalid(form)
+            response.status_code = 503
+            return response
 
-        messages.success(self.request, "Meeting minutes posted successfully and notifications sent.")
+        messages.success(self.request, "Meeting minutes posted successfully.")
         return response
 
 class PostAnnouncementView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
@@ -2278,11 +2287,7 @@ class MeetingMinutesDetailView(LoginRequiredMixin, View):
         dashboard_url = (
             "member-dashboard" if request.user.role == "member" else "committee-dashboard"
         )
-        has_file = (
-            note.file
-            and hasattr(note.file, "url")
-            and note.file.name not in [None, "", "None"]
-        )
+        has_file = minutes_attachment(note) is not None
 
         return render(
             request,

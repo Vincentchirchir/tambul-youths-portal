@@ -1,4 +1,10 @@
 from django.contrib import admin
+from django.contrib import messages
+from django.shortcuts import redirect
+from django.urls import reverse
+from django.utils.html import format_html
+from .forms import MeetingNoteForm
+from .minutes_storage import MinutesStorageUnavailable
 from .models import (
     AIAuditLog,
     CommitteeLetter,
@@ -34,9 +40,38 @@ class WelfareAdmin(admin.ModelAdmin):
 
 @admin.register(MeetingNote)
 class MeetingNoteAdmin(admin.ModelAdmin):
+    form = MeetingNoteForm
     list_display = ("title", "audience", "created_at")
     search_fields = ("title", "content", "description")
     ordering = ("-created_at",)
+    fields = (
+        "title", "description", "content", "audience", "minutes_pdf",
+        "attachment_download", "legacy_file_name", "posted_by",
+    )
+    readonly_fields = ("attachment_download", "legacy_file_name", "posted_by")
+
+    @admin.display(description="Attachment")
+    def attachment_download(self, obj):
+        if obj.pk and (obj.minutes_pdf or obj.file):
+            return format_html('<a href="{}">Download attachment</a>', reverse("meeting-minutes-download", args=[obj.pk]))
+        return "No attachment"
+
+    @admin.display(description="Preserved legacy filename")
+    def legacy_file_name(self, obj):
+        return obj.file.name or "—"
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.posted_by = request.user
+        super().save_model(request, obj, form, change)
+
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        try:
+            return super().changeform_view(request, object_id, form_url, extra_context)
+        except MinutesStorageUnavailable:
+            # The admin's transaction rolls back before this handler runs.
+            self.message_user(request, "Document storage is temporarily unavailable. No meeting changes were saved.", level=messages.ERROR)
+            return redirect(request.path)
 
 
 @admin.register(Announcement)

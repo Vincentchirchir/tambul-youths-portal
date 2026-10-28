@@ -327,3 +327,24 @@ AI_MAX_TOOL_CALLS = env_int("AI_MAX_TOOL_CALLS", 3)
 AI_REQUEST_TIMEOUT = env_float("AI_REQUEST_TIMEOUT", 20)
 AI_RATE_LIMIT = env_int("AI_RATE_LIMIT", 10)
 AI_RATE_LIMIT_WINDOW_SECONDS = env_int("AI_RATE_LIMIT_WINDOW_SECONDS", 60)
+
+# Add an explicit minutes backend without redirecting any existing media fields.
+# Preserve Django 5.2's current effective static backend; changing WhiteNoise's
+# manifest/compression behavior is a separate rollout.
+MINUTES_R2_UPLOADS_ENABLED = env_bool("MINUTES_R2_UPLOADS_ENABLED", default=False)
+MINUTES_MAX_UPLOAD_BYTES = env_int("MINUTES_MAX_UPLOAD_BYTES", 10 * 1024 * 1024)
+_minutes_account_id = os.environ.get("MINUTES_R2_ACCOUNT_ID", "").strip()
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    "meeting_minutes": {
+        "BACKEND": "core.r2_storage.PrivateMinutesR2Storage",
+        "OPTIONS": {
+            "bucket_name": os.environ.get("MINUTES_R2_BUCKET_NAME", "").strip(),
+            "endpoint_url": f"https://{_minutes_account_id}.r2.cloudflarestorage.com" if _minutes_account_id else "",
+            "access_key": os.environ.get("MINUTES_R2_ACCESS_KEY_ID", "").strip(),
+            "secret_key": os.environ.get("MINUTES_R2_SECRET_ACCESS_KEY", "").strip(),
+            "region_name": "auto",
+        },
+    },
+}

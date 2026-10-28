@@ -1,5 +1,10 @@
 from django import forms
 from django.contrib.auth import get_user_model
+from django.conf import settings
+from django.core.files.uploadedfile import UploadedFile
+import hashlib
+import ntpath
+import re
 
 from .models import (
     CommitteeLetter,
@@ -113,14 +118,39 @@ class AnnouncementForm(forms.ModelForm):
 class MeetingNoteForm(forms.ModelForm):
     class Meta:
         model = MeetingNote
-        fields = ["title", "description", "content", "file", "audience"]
+        fields = ["title", "description", "content", "minutes_pdf", "audience"]
+        labels = {"minutes_pdf": "PDF attachment"}
+        help_texts = {"minutes_pdf": "Upload a readable, unencrypted PDF document."}
         widgets = {
             "title": forms.TextInput(attrs={"class": "form-control", "placeholder": "Enter meeting title"}),
             "description": forms.Textarea(attrs={"class": "form-control", "rows": 2, "placeholder": "Short description"}),
             "content": forms.Textarea(attrs={"class": "form-control", "rows": 6, "placeholder": "Full meeting minutes (optional if uploading a file)"}),
-            "file": forms.ClearableFileInput(attrs={"class": "form-control"}),
+            "minutes_pdf": forms.FileInput(attrs={"class": "form-control", "accept": ".pdf,application/pdf"}),
             "audience": forms.Select(attrs={"class": "form-control"}),
         }
+
+    def clean_minutes_pdf(self):
+        upload = self.cleaned_data.get("minutes_pdf")
+        if isinstance(upload, UploadedFile) and not settings.MINUTES_R2_UPLOADS_ENABLED:
+            raise forms.ValidationError("PDF uploads are not enabled yet. Please contact the administrator.")
+        return upload
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        upload = self.cleaned_data.get("minutes_pdf")
+        if isinstance(upload, UploadedFile):
+            digest = hashlib.sha256()
+            upload.seek(0)
+            for chunk in upload.chunks():
+                digest.update(chunk)
+            upload.seek(0)
+            instance.minutes_original_name = re.sub(r"[\x00-\x1f\x7f]", "", ntpath.basename(upload.name))
+            instance.minutes_size = upload.size
+            instance.minutes_sha256 = digest.hexdigest()
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 
 class CommitteeLetterForm(forms.ModelForm):

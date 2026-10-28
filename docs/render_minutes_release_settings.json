@@ -1,0 +1,8 @@
+{
+  "serviceDetails": {
+    "envSpecificDetails": {
+      "buildCommand": "pip install -r requirements.txt && python manage.py collectstatic --noinput"
+    },
+    "preDeployCommand": "python manage.py check --deploy --fail-level WARNING && python manage.py check_minutes_release && python manage.py migrate --noinput && python manage.py link_minutes_r2 --migration-id c5a094aafb5c4989bc6ef6989beca5a7 --apply"
+  }
+}

@@ -238,6 +238,9 @@ class Welfare(models.Model):
 from django.db import models
 from django.conf import settings
 
+from .minutes_storage import meeting_minutes_storage, minutes_upload_path
+from .minutes_validation import validate_meeting_pdf
+
 class MeetingNote(models.Model):
     AUDIENCE_ALL = "all_members"
     AUDIENCE_COMMITTEE = "committee_only"
@@ -250,6 +253,17 @@ class MeetingNote(models.Model):
     description = models.TextField(blank=True)
     content = models.TextField(blank=True, help_text="Optional full text of minutes")
     file = models.FileField(upload_to="minutes/", blank=True, null=True)
+    minutes_pdf = models.FileField(
+        upload_to=minutes_upload_path,
+        storage=meeting_minutes_storage,
+        validators=[validate_meeting_pdf],
+        max_length=255,
+        blank=True,
+        help_text="New PDF attachment stored privately. Existing legacy attachments are retained.",
+    )
+    minutes_original_name = models.CharField(max_length=255, blank=True, editable=False)
+    minutes_sha256 = models.CharField(max_length=64, blank=True, editable=False)
+    minutes_size = models.PositiveBigIntegerField(default=0, editable=False)
     audience = models.CharField(
         max_length=20,
         choices=AUDIENCE_CHOICES,

@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.urls import path
 from .ai_views import AIChatView
+from .minutes_views import MeetingMinutesDownloadView, LegacyMeetingMinutesDownloadView
 from .views import Index, MemberDashboardView, CommitteeDashboardView, CommitteeLetterApproveView, CommitteeLetterCancelView, CommitteeLetterCorrectView, CommitteeLetterCreateView, CommitteeLetterDetailView, CommitteeLetterEditView, CommitteeLetterGeneratePDFView, CommitteeLetterIssueView, CommitteeLetterListView, CommitteeLetterPDFView, CommitteeLetterPreviewView, CommitteeLetterReturnView, CommitteeLetterStatusUpdateView, CommitteeLetterSubmitView, ExportLoansCSV, ExportLoansPDF, ExportContributionsCSV, ExportContributionsPDF, ExportWelfareCSV, ExportWelfarePDF, LetterVerifyResultView, LetterVerifyView, LoanRepaymentUpdateView, LoanTotalPaidUpdateView, ContributionStatusUpdateView, ContributionAmountUpdateView, WelfareAmountUpdateView, WelfareStatusUpdateView, LoanApplicationView, LoanApprovalUpdateView, AnnouncementCreateView, PostMeetingNoteView, PostAnnouncementView, ProfileView, EditProfileView, NotificationListView, MarkNotificationReadView, MarkAllNotificationsReadView, NotificationFetchView, AnnouncementDetailView, MeetingMinutesDetailView, web_manifest, service_worker
 
 
@@ -54,6 +55,8 @@ urlpatterns = [
     path("notifications/fetch/", NotificationFetchView.as_view(), name="notification_fetch"),
     path("announcements/<int:pk>/", AnnouncementDetailView.as_view(), name="announcement-detail"),
     path("minutes/<int:pk>/", MeetingMinutesDetailView.as_view(), name="meeting-minutes-detail"),
+    path("minutes/<int:pk>/download/", MeetingMinutesDownloadView.as_view(), name="meeting-minutes-download"),
+    path("media/minutes/<path:filename>", LegacyMeetingMinutesDownloadView.as_view(), name="legacy-meeting-minutes-download"),
 
 
 ]

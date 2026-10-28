@@ -30,24 +30,20 @@
         {% endif %}
 
         {% if has_file %}
-          <iframe
-            class="minutes-viewer"
-            src="{{ note.file.url }}"
-            title="{{ note.title }}"
-          ></iframe>
           <a
             class="download-btn"
-            href="{{ note.file.url }}"
+            href="{% url 'meeting-minutes-download' note.pk %}"
             target="_blank"
             rel="noopener"
           >
             Download Attachment
           </a>
-        {% elif note.content %}
+        {% endif %}
+        {% if note.content %}
           <div class="minutes-content">
             {{ note.content|linebreaks }}
           </div>
-        {% else %}
+        {% elif not has_file %}
           <div class="minutes-empty">
             No attachment or written summary was provided for these minutes.
           </div>
